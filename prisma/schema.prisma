@@ -1,0 +1,49 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Place {
+  id              String         @id @default(uuid())
+  name            String         @db.VarChar(255)
+  slug            String         @unique @db.VarChar(255)
+  description     String?        @db.Text
+  addressText     String?        @map("address_text") @db.VarChar(255)
+  district        String?        @db.VarChar(100)
+  city            String         @default("TP. Hồ Chí Minh") @db.VarChar(100)
+  latitude        Decimal?       @db.Decimal(9, 6)
+  longitude       Decimal?       @db.Decimal(10, 6)
+  coverImageUrl   String?        @map("cover_image_url") @db.VarChar(255)
+  openingHours    String?        @map("opening_hours") @db.VarChar(100)
+  priceInfo       String?        @map("price_info") @db.VarChar(100)
+  contactInfo     String?        @map("contact_info") @db.VarChar(100)
+  tipsNotes       String?        @map("tips_notes") @db.Text
+  isFeatured      Boolean        @default(false) @map("is_featured")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  images          PlaceImage[]
+
+  @@map("places")
+}
+
+model PlaceImage {
+  id        String   @id @default(uuid())
+  placeId   String   @map("place_id")
+  imageUrl  String   @map("image_url") @db.VarChar(255)
+  caption   String?  @db.VarChar(255)
+
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@map("place_images")
+}
