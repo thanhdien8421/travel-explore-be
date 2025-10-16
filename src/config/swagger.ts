@@ -19,8 +19,8 @@ const options: swaggerJsdoc.Options = {
     },
     servers: [
       {
-        url: "http://localhost:8000",
-        description: "Development server",
+        url: process.env.BACKEND_URL || 'http://localhost:8000', // Dùng biến môi trường
+        description: 'Server',
       },
     ],
     tags: [
