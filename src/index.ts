@@ -10,7 +10,7 @@
  */
 
 import express from "express";
-//import cors from "cors";
+import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
@@ -61,6 +61,10 @@ app.use(helmet({
 // })); // Enable CORS for frontend
 
 // Body parsing middleware
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
