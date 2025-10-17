@@ -18,6 +18,7 @@ import placeRoutes from "./routes/places.js";
 import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerSpec } from "./config/swagger.js";
+import { prisma } from "./lib/prisma.js";
 
 // Load environment variables
 dotenv.config();
@@ -119,12 +120,43 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 const port = process.env.PORT || 8000;
-app.listen(port, () => {
-  console.log(`
+
+// NEW: Async startup function
+async function startServer() {
+  try {
+    // 1. Connect to database FIRST
+    await prisma.$connect();
+    console.log('✅ Database connected successfully');
+    
+    // 2. THEN start the server
+    app.listen(port, () => {
+      console.log(`
 🚀 Travel Explore API Server Started!
 📍 Server running on: http://localhost:${port}
 🏥 Health check: http://localhost:${port}/health
 📚 API endpoints: http://localhost:${port}/api/places
 📖 API Documentation: http://localhost:${port}/api-docs
-  `);
+      `);
+    });
+  } catch (error) {
+    console.error('❌ Failed to connect to database:', error);
+    console.error('Check your DATABASE_URL and Supabase connection');
+    process.exit(1); // Exit if DB connection fails
+  }
+}
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  await prisma.$disconnect();
+  process.exit(0);
 });
+
+process.on('SIGTERM', async () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+// Start the server
+startServer();
