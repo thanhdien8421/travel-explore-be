@@ -7,6 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx prisma/seed.ts",
+    "migrate:data": "tsx scripts/migrate-data.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "test": "echo \"Error: no test specified\" && exit 1"
