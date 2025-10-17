@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import type { PlaceSummary, PlaceDetail } from "../types/place.types.js";
 import { getImageUrl } from "../lib/supabase.js";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma.js";
 
 
 export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
