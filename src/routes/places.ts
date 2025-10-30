@@ -1,8 +1,10 @@
 import express from "express";
 import type { Request, Response } from "express";
 import { getFeaturedPlaces, getPlaceBySlug, getAllPlaces } from "../services/placeService.js";
+import jwt from "jsonwebtoken";
 
 const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 
 /**
  * @swagger
@@ -107,7 +109,22 @@ router.get("/:slug", async (req: Request, res: Response) => {
     if (!slug) {
       return res.status(400).json({ error: "Slug is required" });
     }
-    const place = await getPlaceBySlug(slug);
+    
+    // Extract userId from auth header if present
+    const authHeader = req.headers.authorization;
+    let userId: string | undefined;
+    
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const token = authHeader.substring(7);
+        const decoded = jwt.verify(token, JWT_SECRET) as { id: string; role: string };
+        userId = decoded.id;
+      } catch {
+        // If token verification fails, continue without userId
+      }
+    }
+    
+    const place = await getPlaceBySlug(slug, userId);
 
     if (!place) return res.status(404).json({ message: "Place not found" });
 

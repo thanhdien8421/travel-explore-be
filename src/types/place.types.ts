@@ -5,6 +5,7 @@ export interface PlaceSummary {
   slug: string;
   district: string | null;
   cover_image_url: string | null;
+  average_rating: number;
 }
 
 export interface PlaceDetail {
@@ -23,11 +24,22 @@ export interface PlaceDetail {
   contact_info?: string | null;
   tips_notes?: string | null;
   is_featured: boolean;
+  average_rating: number;
+  visited?: boolean;
   created_at: Date;
   updated_at: Date;
   images: {
     id: string;
     image_url: string | null;
     caption?: string | null;
+  }[];
+  reviews: {
+    id: string;
+    rating: number;
+    comment: string | null;
+    created_at: Date;
+    user: {
+      full_name: string;
+    };
   }[];
 }

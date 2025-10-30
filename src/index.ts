@@ -15,6 +15,9 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import placeRoutes from "./routes/places.js";
+import authRoutes from "./routes/authRoutes.js";
+import reviewRoute from "./routes/reviewRoutes.js";
+import visitRoutes from "./routes/visitRoutes.js";
 import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerSpec } from "./config/swagger.js";
@@ -105,7 +108,10 @@ app.get("/health", (req, res) => {
 });
 
 // API routes
+app.use("/api/auth", authRoutes);
 app.use("/api/places", placeRoutes);
+app.use("/api/places", reviewRoute);
+app.use("/api", visitRoutes);
 app.use("/api/admin/places", adminPlaceRoutes);
 
 // 404 handler

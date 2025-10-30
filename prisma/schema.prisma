@@ -1,50 +1,91 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 model Place {
-  id              String         @id @default(uuid())
-  name            String         @db.VarChar(255)
-  slug            String         @unique @db.VarChar(255)
-  description     String?        @db.Text
-  addressText     String?        @map("address_text") @db.VarChar(255)
-  district        String?        @db.VarChar(100)
-  city            String         @default("TP. Hồ Chí Minh") @db.VarChar(100)
-  latitude        Decimal?       @db.Decimal(9, 6)
-  longitude       Decimal?       @db.Decimal(10, 6)
-  coverImageUrl   String?        @map("cover_image_url") @db.VarChar(255)
-  openingHours    String?        @map("opening_hours") @db.VarChar(100)
-  priceInfo       String?        @map("price_info") @db.VarChar(100)
-  contactInfo     String?        @map("contact_info") @db.VarChar(100)
-  tipsNotes       String?        @map("tips_notes") @db.Text
-  isFeatured      Boolean        @default(false) @map("is_featured")
-  createdAt       DateTime       @default(now()) @map("created_at")
-  updatedAt       DateTime       @updatedAt @map("updated_at")
-
-  images          PlaceImage[]
+  id            String       @id @default(uuid())
+  name          String       @db.VarChar(255)
+  slug          String       @unique @db.VarChar(255)
+  description   String?
+  addressText   String?      @map("address_text") @db.VarChar(255)
+  district      String?      @db.VarChar(100)
+  city          String       @default("TP. Hồ Chí Minh") @db.VarChar(100)
+  latitude      Decimal?     @db.Decimal(9, 6)
+  longitude     Decimal?     @db.Decimal(10, 6)
+  coverImageUrl String?      @map("cover_image_url") @db.VarChar(255)
+  openingHours  String?      @map("opening_hours") @db.VarChar(100)
+  priceInfo     String?      @map("price_info") @db.VarChar(100)
+  contactInfo   String?      @map("contact_info") @db.VarChar(100)
+  tipsNotes     String?      @map("tips_notes")
+  isFeatured    Boolean      @default(false) @map("is_featured")
+  averageRating Decimal      @default(0.0) @map("average_rating") @db.Decimal(2, 1)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  
+  images        PlaceImage[]
+  reviews       Review[]
+  userVisits    UserVisit[]
 
   @@map("places")
 }
 
 model PlaceImage {
-  id        String   @id @default(uuid())
-  placeId   String   @map("place_id")
-  imageUrl  String   @map("image_url") @db.VarChar(255)
-  caption   String?  @db.VarChar(255)
-
-  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  id       String  @id @default(uuid())
+  placeId  String  @map("place_id")
+  imageUrl String  @map("image_url") @db.VarChar(255)
+  caption  String? @db.VarChar(255)
+  place    Place   @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@map("place_images")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+model User {
+  id           String      @id @default(uuid())
+  fullName     String?     @map("full_name") @db.VarChar(100)
+  email        String      @unique @db.VarChar(255)
+  passwordHash String      @map("password_hash") @db.VarChar(255)
+  role         UserRole    @default(USER)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  
+  reviews      Review[]
+  userVisits   UserVisit[]
+
+  @@map("users")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  placeId   String   @map("place_id")
+  userId    String   @map("user_id")
+  rating    Int      @db.SmallInt
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model UserVisit {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  placeId   String   @map("place_id")
+  visitedAt DateTime @default(now()) @map("visited_at")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@map("user_visits")
 }

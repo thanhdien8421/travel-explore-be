@@ -140,9 +140,9 @@ router.post("/", async (req: Request, res: Response) => {
     try {
         const newPlace = await createPlace(req.body);
         res.status(201).json(newPlace);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Failed to create place:", error);
-        if (error.code === 'P2002') {
+        if (error instanceof Error && (error as any).code === 'P2002') {
             return res.status(409).json({ message: 'A place with this name already exists.' });
         }
         res.status(500).json({ message: "Server error" });

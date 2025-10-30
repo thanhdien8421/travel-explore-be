@@ -29,8 +29,20 @@ const options: swaggerJsdoc.Options = {
         description: "Server health check endpoints",
       },
       {
+        name: "Authentication",
+        description: "User authentication endpoints (register, login)",
+      },
+      {
         name: "Places",
         description: "Travel places discovery and information endpoints",
+      },
+      {
+        name: "Reviews",
+        description: "User reviews and ratings for places",
+      },
+      {
+        name: "Visits",
+        description: "User visit tracking endpoints",
       },
       {
         name: "Admin",
@@ -45,7 +57,7 @@ const options: swaggerJsdoc.Options = {
       schemas: {
         PlaceSummary: {
           type: "object",
-          required: ["id", "name", "slug"],
+          required: ["id", "name", "slug", "average_rating"],
           properties: {
             id: {
               type: "string",
@@ -82,11 +94,19 @@ const options: swaggerJsdoc.Options = {
               description: "Cover image URL",
               example: "https://example.com/images/cho-ben-thanh.jpg",
             },
+            average_rating: {
+              type: "number",
+              format: "float",
+              description: "Average rating based on all reviews",
+              minimum: 0,
+              maximum: 5,
+              example: 4.2,
+            },
           },
         },
         PlaceDetail: {
           type: "object",
-          required: ["id", "name", "slug", "is_featured", "created_at", "updated_at", "images"],
+          required: ["id", "name", "slug", "is_featured", "average_rating", "created_at", "updated_at", "images"],
           properties: {
             id: {
               type: "string",
@@ -175,6 +195,20 @@ const options: swaggerJsdoc.Options = {
             is_featured: {
               type: "boolean",
               description: "Whether this is a featured place",
+              example: true,
+            },
+            average_rating: {
+              type: "number",
+              format: "float",
+              description: "Average rating based on all reviews",
+              minimum: 0,
+              maximum: 5,
+              example: 4.2,
+            },
+            visited: {
+              type: "boolean",
+              nullable: true,
+              description: "Whether the authenticated user has visited this place (only present if user is authenticated)",
               example: true,
             },
             created_at: {
@@ -425,6 +459,125 @@ const options: swaggerJsdoc.Options = {
               example: 1,
             },
           },
+        },
+        User: {
+          type: "object",
+          required: ["id", "email", "fullName", "role", "createdAt"],
+          properties: {
+            id: {
+              type: "string",
+              format: "uuid",
+              description: "User ID",
+            },
+            email: {
+              type: "string",
+              format: "email",
+              description: "User email",
+            },
+            fullName: {
+              type: "string",
+              nullable: true,
+              description: "User full name",
+            },
+            role: {
+              type: "string",
+              enum: ["USER", "ADMIN"],
+              description: "User role",
+              example: "USER",
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time",
+              description: "Account creation timestamp",
+            },
+          },
+        },
+        AuthResponse: {
+          type: "object",
+          required: ["user", "token"],
+          properties: {
+            user: {
+              $ref: "#/components/schemas/User",
+            },
+            token: {
+              type: "string",
+              description: "JWT authentication token",
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+            },
+          },
+        },
+        Review: {
+          type: "object",
+          required: ["id", "placeId", "userId", "rating", "createdAt"],
+          properties: {
+            id: {
+              type: "string",
+              format: "uuid",
+              description: "Review ID",
+            },
+            placeId: {
+              type: "string",
+              format: "uuid",
+              description: "Place ID",
+            },
+            userId: {
+              type: "string",
+              format: "uuid",
+              description: "User ID",
+            },
+            rating: {
+              type: "integer",
+              minimum: 1,
+              maximum: 5,
+              description: "Rating from 1 to 5",
+              example: 5,
+            },
+            comment: {
+              type: "string",
+              nullable: true,
+              description: "Review comment",
+              example: "Tuyệt vời! Nơi này quá đáng để ghé thăm",
+            },
+            createdAt: {
+              type: "string",
+              format: "date-time",
+              description: "Review creation timestamp",
+            },
+          },
+        },
+        UserVisit: {
+          type: "object",
+          required: ["id", "userId", "placeId", "visitedAt"],
+          properties: {
+            id: {
+              type: "string",
+              format: "uuid",
+              description: "Visit record ID",
+            },
+            userId: {
+              type: "string",
+              format: "uuid",
+              description: "User ID",
+            },
+            placeId: {
+              type: "string",
+              format: "uuid",
+              description: "Place ID",
+            },
+            visitedAt: {
+              type: "string",
+              format: "date-time",
+              description: "Visit timestamp",
+            },
+          },
+        },
+      },
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Enter JWT token",
         },
       },
     },
