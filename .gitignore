@@ -37,6 +37,10 @@ out/
 # OS
 Thumbs.db
 
+# Documentation (keep README.md only)
+*.md
+!README.md
+
 # Backups & Scripts (development only)
 backups/
 *.backup
