@@ -19,6 +19,8 @@ import authRoutes from "./routes/authRoutes.js";
 import reviewRoute from "./routes/reviewRoutes.js";
 import visitRoutes from "./routes/visitRoutes.js";
 import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
+import categoryRoutes from "./routes/categoryRoutes.js";
+import wardRoutes from "./routes/wardRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerSpec } from "./config/swagger.js";
 import { prisma } from "./lib/prisma.js";
@@ -113,6 +115,8 @@ app.use("/api/places", placeRoutes);
 app.use("/api/places", reviewRoute);
 app.use("/api", visitRoutes);
 app.use("/api/admin/places", adminPlaceRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/wards", wardRoutes);
 
 // 404 handler
 app.use((req, res) => {

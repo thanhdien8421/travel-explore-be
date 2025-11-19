@@ -19,7 +19,13 @@ declare global {
 }
 
 // Use existing instance if available, otherwise create new one
-export const prisma = global.prisma || new PrismaClient();
+export const prisma = global.prisma || new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL || '',
+    },
+  },
+});
 
 // In development, store instance globally to survive hot reloads
 if (process.env.NODE_ENV !== 'production') {

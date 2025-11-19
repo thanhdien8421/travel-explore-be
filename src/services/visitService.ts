@@ -46,7 +46,7 @@ export const getUserVisits = async (userId: string): Promise<UserVisitResponse[]
     },
   });
 
-  return visits.map((v) => ({
+  return visits.map((v: typeof visits[0]) => ({
     place: v.place,
     visitedAt: v.visitedAt,
   }));

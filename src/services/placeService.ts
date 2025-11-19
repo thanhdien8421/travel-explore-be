@@ -2,10 +2,38 @@ import type { PlaceSummary, PlaceDetail } from "../types/place.types.js";
 import { getImageUrl } from "../lib/supabase.js";
 import { prisma } from "../lib/prisma.js";
 
+// Helper function to remove Vietnamese diacritics
+const removeDiacritics = (str: string): string => {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D");
+};
+
+interface SearchOptions {
+  q?: string;
+  category?: string;
+  ward?: string;
+  district?: string;
+  sortBy?: string;
+  limit?: number;
+  page?: number;
+}
+
+interface SearchResponse {
+  data: PlaceSummary[];
+  pagination: {
+    totalItems: number;
+    totalPages: number;
+    currentPage: number;
+  };
+}
+
 
 export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
   const places = await prisma.place.findMany({
-    where: { isFeatured: true },
+    where: { isFeatured: true, isActive: true },
     take: limit,
     select: {
       id: true,
@@ -13,25 +41,21 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
       description: true,
       slug: true,
       district: true,
+      latitude: true,
+      longitude: true,
       coverImageUrl: true,
       averageRating: true,
     },
   });
 
-  return places.map((p: {
-    id: string;
-    name: string;
-    description: string | null;
-    slug: string;
-    district: string | null;
-    coverImageUrl: string | null;
-    averageRating: any;
-  }) => ({
+  return places.map((p: typeof places[0]) => ({
     id: p.id,
     name: p.name,
     description: p.description,
     slug: p.slug,
     district: p.district,
+    latitude: p.latitude?.toNumber() ?? null,
+    longitude: p.longitude?.toNumber() ?? null,
     cover_image_url: getImageUrl(p.coverImageUrl),
     average_rating: p.averageRating?.toNumber() ?? 0,
   }));
@@ -39,6 +63,7 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
 
 export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
   const places = await prisma.place.findMany({
+    where: { isActive: true },
     take: limit,
     select: {
       id: true,
@@ -46,29 +71,148 @@ export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> 
       description: true,
       slug: true,
       district: true,
+      latitude: true,
+      longitude: true,
       coverImageUrl: true,
       averageRating: true,
     },
   });
 
-
-  return places.map((p: {
-    id: string;
-    name: string;
-    description: string | null;
-    slug: string;
-    district: string | null;
-    coverImageUrl: string | null;
-    averageRating: any;
-  }) => ({
+  return places.map((p: typeof places[0]) => ({
     id: p.id,
     name: p.name,
     description: p.description,
     slug: p.slug,
     district: p.district,
+    latitude: p.latitude?.toNumber() ?? null,
+    longitude: p.longitude?.toNumber() ?? null,
     cover_image_url: getImageUrl(p.coverImageUrl),
     average_rating: p.averageRating?.toNumber() ?? 0,
   }));
+};
+
+export const searchPlaces = async (options: SearchOptions): Promise<SearchResponse> => {
+  const {
+    q = "",
+    category = "",
+    ward = "",
+    district = "",
+    sortBy = "name_asc",
+    limit = 10,
+    page = 1,
+  } = options;
+
+  const skip = (page - 1) * limit;
+
+  // Build where clause
+  const where: any = { isActive: true };
+
+  // Search by name, description, or full_address_generated (case-insensitive)
+  if (q) {
+    where.OR = [
+      {
+        name: {
+          contains: q,
+          mode: "insensitive",
+        },
+      },
+      {
+        description: {
+          contains: q,
+          mode: "insensitive",
+        },
+      },
+      {
+        fullAddressGenerated: {
+          contains: q,
+          mode: "insensitive",
+        },
+      },
+    ];
+  }
+
+  // Filter by ward (primary filter)
+  if (ward) {
+    where.ward = {
+      equals: ward,
+      mode: "insensitive",
+    };
+  }
+
+  // Filter by district (secondary filter - for backward compatibility)
+  if (district && !ward) {
+    where.district = {
+      equals: district,
+      mode: "insensitive",
+    };
+  }
+
+  // Filter by category (Many-to-Many)
+  if (category) {
+    where.categories = {
+      some: {
+        category: {
+          slug: {
+            in: category.split(",").map(c => c.trim()),
+          },
+        },
+      },
+    };
+  }
+
+  // Sort options
+  let orderBy: any = { name: "asc" };
+  if (sortBy === "rating_desc") {
+    orderBy = { averageRating: "desc" };
+  } else if (sortBy === "rating_asc") {
+    orderBy = { averageRating: "asc" };
+  } else if (sortBy === "name_desc") {
+    orderBy = { name: "desc" };
+  }
+
+  // Get total count
+  const totalItems = await prisma.place.count({ where });
+  const totalPages = Math.ceil(totalItems / limit);
+
+  // Get paginated results
+  const places = await prisma.place.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      slug: true,
+      district: true,
+      latitude: true,
+      longitude: true,
+      coverImageUrl: true,
+      averageRating: true,
+    },
+    orderBy,
+    skip,
+    take: limit,
+  });
+
+  const data = places.map((p: typeof places[0]) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    slug: p.slug,
+    district: p.district,
+    latitude: p.latitude?.toNumber() ?? null,
+    longitude: p.longitude?.toNumber() ?? null,
+    cover_image_url: getImageUrl(p.coverImageUrl),
+    average_rating: p.averageRating?.toNumber() ?? 0,
+  }));
+
+  return {
+    data,
+    pagination: {
+      totalItems,
+      totalPages,
+      currentPage: page,
+    },
+  };
 };
 
 /**
@@ -105,7 +249,8 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
     },
   });
 
-  if (!place) return null;
+  // Only return active places
+  if (!place || !place.isActive) return null;
 
   type ImageRecord = typeof place.images[number];
   type ReviewRecord = typeof place.reviews[number];
@@ -115,9 +260,11 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
     name: place.name,
     slug: place.slug,
     description: place.description,
-    address_text: place.addressText,
+    address_text: place.fullAddressGenerated,
+    street_address: place.streetAddress,
+    ward: place.ward,
     district: place.district,
-    city: place.city,
+    city: place.provinceCity,
     latitude: place.latitude?.toNumber() ?? null,
     longitude: place.longitude?.toNumber() ?? null,
     cover_image_url: getImageUrl(place.coverImageUrl),

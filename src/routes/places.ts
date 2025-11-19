@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response } from "express";
-import { getFeaturedPlaces, getPlaceBySlug, getAllPlaces } from "../services/placeService.js";
+import { getFeaturedPlaces, getPlaceBySlug, getAllPlaces, searchPlaces } from "../services/placeService.js";
 import jwt from "jsonwebtoken";
 
 const router = express.Router();
@@ -10,52 +10,113 @@ const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
  * @swagger
  * /api/places:
  *   get:
- *     summary: Get list of places
- *     description: Get all places or featured places based on query parameters
+ *     summary: Get list of places with search and filter
+ *     description: Get places with support for search, filtering by category/ward, and pagination
  *     tags: [Places]
  *     parameters:
  *       - in: query
- *         name: featured
+ *         name: q
  *         schema:
- *           type: boolean
- *         description: Filter for featured places only
- *         example: true
+ *           type: string
+ *         description: Search keyword (searches in name, description, and full address)
+ *         example: chùa
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category (comma-separated slugs)
+ *         example: "di-tich-lich-su,bao-tang-trien-lam"
+ *       - in: query
+ *         name: ward
+ *         schema:
+ *           type: string
+ *         description: Filter by ward (phường/xã)
+ *         example: "Phường Bến Thành"
+ *       - in: query
+ *         name: district
+ *         schema:
+ *           type: string
+ *         description: Filter by district (backward compatibility)
+ *         example: "Quận 1"
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [name_asc, name_desc, rating_asc, rating_desc]
+ *         description: Sort results
+ *         example: rating_desc
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 10
  *         description: Maximum number of places to return
- *         example: 8
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
  *     responses:
  *       200:
- *         description: List of places
+ *         description: List of places with pagination info
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/PlaceSummary'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     totalItems:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *                     currentPage:
+ *                       type: integer
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const featured = req.query.featured === "true";
+    const q = (req.query.q as string) || "";
+    const category = (req.query.category as string) || "";
+    const ward = (req.query.ward as string) || "";
+    const district = (req.query.district as string) || "";
+    const sortBy = (req.query.sortBy as string) || "name_asc";
     const limit = parseInt(req.query.limit as string) || 10;
+    const page = parseInt(req.query.page as string) || 1;
+    const featured = req.query.featured === "true";
 
+    // If featured flag is set, get featured places (backward compatibility)
     if (featured) {
       const places = await getFeaturedPlaces(limit);
-      return res.status(200).json(places);
-    } else {
-      const places = await getAllPlaces(limit);
-      return res.status(200).json(places);
+      return res.status(200).json({
+        data: places,
+        pagination: {
+          totalItems: places.length,
+          totalPages: 1,
+          currentPage: 1,
+        },
+      });
     }
-    // return res.status(400).json({ message: "Invalid query or unsupported endpoint." });
+
+    // Otherwise, use search with filters
+    const result = await searchPlaces({
+      q,
+      category,
+      ward,
+      district,
+      sortBy,
+      limit,
+      page,
+    });
+
+    res.status(200).json(result);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -80,28 +141,10 @@ router.get("/", async (req: Request, res: Response) => {
  *     responses:
  *       200:
  *         description: Place details
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PlaceDetail'
- *       400:
- *         description: Bad request - slug is required
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: Place not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get("/:slug", async (req: Request, res: Response) => {
   try {

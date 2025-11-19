@@ -4,6 +4,8 @@ export interface PlaceSummary {
   description: string | null;
   slug: string;
   district: string | null;
+  latitude: number | null;
+  longitude: number | null;
   cover_image_url: string | null;
   average_rating: number;
 }
@@ -14,6 +16,8 @@ export interface PlaceDetail {
   slug: string;
   description?: string | null;
   address_text?: string | null;
+  street_address?: string | null;
+  ward?: string | null;
   district?: string | null;
   city?: string | null;
   latitude?: number | null;
@@ -28,6 +32,11 @@ export interface PlaceDetail {
   visited?: boolean;
   created_at: Date;
   updated_at: Date;
+  categories?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+  }>;
   images: {
     id: string;
     image_url: string | null;

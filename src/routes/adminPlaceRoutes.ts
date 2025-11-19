@@ -1,6 +1,7 @@
 import express from "express";
 import type { Request, Response } from "express";
-import { getAdminPlaces, createPlace } from "../services/adminPlaceService.js";
+import { getAdminPlaces, createPlace, updatePlace, deletePlace } from "../services/adminPlaceService.js";
+import { authenticateToken } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -11,32 +12,17 @@ const router = express.Router();
  *     summary: Get all places (Admin)
  *     description: Get all places with basic information for admin management
  *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: List of all places
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: string
- *                     format: uuid
- *                   name:
- *                     type: string
- *                   district:
- *                     type: string
- *                     nullable: true
+ *       401:
+ *         description: Unauthorized
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get("/", async (_req: Request, res: Response) => {
+router.get("/", authenticateToken, async (_req: Request, res: Response) => {
     try {
         const places = await getAdminPlaces();
         res.status(200).json(places);
@@ -51,8 +37,10 @@ router.get("/", async (_req: Request, res: Response) => {
  * /api/admin/places:
  *   post:
  *     summary: Create a new place (Admin)
- *     description: Create a new place with auto-generated slug and geocoding
+ *     description: Create a new place with structured address and categories
  *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -61,80 +49,52 @@ router.get("/", async (_req: Request, res: Response) => {
  *             type: object
  *             required:
  *               - name
- *               - addressText
+ *               - ward
  *             properties:
  *               name:
  *                 type: string
- *                 description: Place name
- *                 example: "Chợ Bến Thành"
  *               description:
  *                 type: string
- *                 description: Place description
- *               addressText:
+ *               streetAddress:
  *                 type: string
- *                 description: Full address
- *                 example: "Lê Lợi, Phường Bến Thành, Quận 1, TP. Hồ Chí Minh"
+ *               ward:
+ *                 type: string
  *               district:
  *                 type: string
- *                 description: District (auto-detected if not provided)
- *               city:
+ *               provinceCity:
  *                 type: string
- *                 description: City name
+ *                 default: "TP. Hồ Chí Minh"
+ *               locationDescription:
+ *                 type: string
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
  *               coverImageUrl:
  *                 type: string
- *                 format: uri
- *                 description: Cover image URL
- *               openingHours:
- *                 type: string
- *                 description: Opening hours
- *               priceInfo:
- *                 type: string
- *                 description: Price information
- *               contactInfo:
- *                 type: string
- *                 description: Contact information
- *               tipsNotes:
- *                 type: string
- *                 description: Tips and notes
+ *               categoryIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               isFeatured:
  *                 type: boolean
- *                 description: Featured flag
- *                 default: false
  *     responses:
  *       201:
  *         description: Place created successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PlaceDetail'
  *       400:
  *         description: Bad request - missing required fields
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Unauthorized
  *       409:
- *         description: Conflict - place already exists
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "A place with this name already exists."
+ *         description: Place already exists
  *       500:
  *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/", async (req: Request, res: Response) => {
-    const { name, addressText } = req.body;
+router.post("/", authenticateToken, async (req: Request, res: Response) => {
+    const { name, ward } = req.body;
 
-    if (!name || !addressText) {
-        return res.status(400).json({ message: "Name and addressText are required." });
+    if (!name || !ward) {
+        return res.status(400).json({ message: "Name and ward are required." });
     }
 
     try {
@@ -144,6 +104,129 @@ router.post("/", async (req: Request, res: Response) => {
         console.error("Failed to create place:", error);
         if (error instanceof Error && (error as any).code === 'P2002') {
             return res.status(409).json({ message: 'A place with this name already exists.' });
+        }
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/places/{id}:
+ *   put:
+ *     summary: Update a place (Admin)
+ *     description: Update place information with structured address
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Place ID (UUID)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               streetAddress:
+ *                 type: string
+ *               ward:
+ *                 type: string
+ *               district:
+ *                 type: string
+ *               provinceCity:
+ *                 type: string
+ *               locationDescription:
+ *                 type: string
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *               coverImageUrl:
+ *                 type: string
+ *               categoryIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               isFeatured:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Place updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Place not found
+ *       500:
+ *         description: Server error
+ */
+router.put("/:id", authenticateToken, async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    if (!id) {
+        return res.status(400).json({ message: "Place ID is required." });
+    }
+
+    try {
+        const updatedPlace = await updatePlace(id, req.body);
+        res.status(200).json(updatedPlace);
+    } catch (error: unknown) {
+        console.error("Failed to update place:", error);
+        if (error instanceof Error && (error as any).code === 'P2025') {
+            return res.status(404).json({ message: 'Place not found.' });
+        }
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/places/{id}:
+ *   delete:
+ *     summary: Delete a place (Soft delete - Admin)
+ *     description: Soft delete a place (marks as inactive, doesn't remove from database)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Place ID (UUID)
+ *     responses:
+ *       204:
+ *         description: Place deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Place not found
+ *       500:
+ *         description: Server error
+ */
+router.delete("/:id", authenticateToken, async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    if (!id) {
+        return res.status(400).json({ message: "Place ID is required." });
+    }
+
+    try {
+        await deletePlace(id);
+        res.status(204).send();
+    } catch (error: unknown) {
+        console.error("Failed to delete place:", error);
+        if (error instanceof Error && (error as any).code === 'P2025') {
+            return res.status(404).json({ message: 'Place not found.' });
         }
         res.status(500).json({ message: "Server error" });
     }

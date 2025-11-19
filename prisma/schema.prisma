@@ -9,28 +9,33 @@ datasource db {
 }
 
 model Place {
-  id            String       @id @default(uuid())
-  name          String       @db.VarChar(255)
-  slug          String       @unique @db.VarChar(255)
-  description   String?
-  addressText   String?      @map("address_text") @db.VarChar(255)
-  district      String?      @db.VarChar(100)
-  city          String       @default("TP. Hồ Chí Minh") @db.VarChar(100)
-  latitude      Decimal?     @db.Decimal(9, 6)
-  longitude     Decimal?     @db.Decimal(10, 6)
-  coverImageUrl String?      @map("cover_image_url") @db.VarChar(255)
-  openingHours  String?      @map("opening_hours") @db.VarChar(100)
-  priceInfo     String?      @map("price_info") @db.VarChar(100)
-  contactInfo   String?      @map("contact_info") @db.VarChar(100)
-  tipsNotes     String?      @map("tips_notes")
-  isFeatured    Boolean      @default(false) @map("is_featured")
-  averageRating Decimal      @default(0.0) @map("average_rating") @db.Decimal(2, 1)
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  id                     String          @id @default(uuid())
+  name                   String          @db.VarChar(255)
+  slug                   String          @unique @db.VarChar(255)
+  description            String?
+  streetAddress          String?         @map("street_address") @db.VarChar(255)
+  ward                   String          @db.VarChar(100)
+  district               String?         @db.VarChar(100)
+  provinceCity           String          @default("TP. Hồ Chí Minh") @map("province_city") @db.VarChar(100)
+  locationDescription    String?         @map("location_description")
+  fullAddressGenerated   String?         @map("full_address_generated")
+  latitude               Decimal?        @db.Decimal(9, 6)
+  longitude              Decimal?        @db.Decimal(10, 6)
+  coverImageUrl          String?         @map("cover_image_url") @db.VarChar(255)
+  openingHours           String?         @map("opening_hours") @db.VarChar(100)
+  priceInfo              String?         @map("price_info") @db.VarChar(100)
+  contactInfo            String?         @map("contact_info") @db.VarChar(100)
+  tipsNotes              String?         @map("tips_notes")
+  isFeatured             Boolean         @default(false) @map("is_featured")
+  isActive               Boolean         @default(true) @map("is_active")
+  averageRating          Decimal         @default(0.0) @map("average_rating") @db.Decimal(2, 1)
+  createdAt              DateTime        @default(now()) @map("created_at")
+  updatedAt              DateTime        @updatedAt @map("updated_at")
   
-  images        PlaceImage[]
-  reviews       Review[]
-  userVisits    UserVisit[]
+  images                 PlaceImage[]
+  reviews                Review[]
+  userVisits             UserVisit[]
+  categories             PlaceCategory[]
 
   @@map("places")
 }
@@ -88,4 +93,25 @@ model UserVisit {
   place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@map("user_visits")
+}
+
+model Category {
+  id       String          @id @default(uuid())
+  name     String          @unique @db.VarChar(100)
+  slug     String          @unique @db.VarChar(100)
+  
+  places   PlaceCategory[]
+
+  @@map("categories")
+}
+
+model PlaceCategory {
+  placeId    String   @map("place_id")
+  categoryId String   @map("category_id")
+  
+  place      Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([placeId, categoryId])
+  @@map("place_categories")
 }
