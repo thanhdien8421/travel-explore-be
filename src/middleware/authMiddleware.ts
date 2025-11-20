@@ -31,3 +31,24 @@ export const authenticateToken = (
     res.status(403).json({ error: "Invalid token" });
   }
 };
+
+/**
+ * Middleware to check if user is ADMIN
+ * Must be used after authenticateToken
+ */
+export const requireAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized: User not found" });
+  }
+
+  if (req.user.role !== "ADMIN") {
+    console.warn(`Access denied: User ${req.user.id} with role ${req.user.role} tried to access admin endpoint`);
+    return res.status(403).json({ error: "Forbidden: Admin access required" });
+  }
+
+  next();
+};

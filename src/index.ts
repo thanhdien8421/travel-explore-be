@@ -14,13 +14,14 @@ import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
-import placeRoutes from "./routes/places.js";
+import placeRoutes from "./routes/placesRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import reviewRoute from "./routes/reviewRoutes.js";
 import visitRoutes from "./routes/visitRoutes.js";
 import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import wardRoutes from "./routes/wardRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerSpec } from "./config/swagger.js";
 import { prisma } from "./lib/prisma.js";
@@ -117,6 +118,7 @@ app.use("/api", visitRoutes);
 app.use("/api/admin/places", adminPlaceRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/wards", wardRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // 404 handler
 app.use((req, res) => {

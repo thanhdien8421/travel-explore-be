@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/library";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
 
@@ -57,17 +58,127 @@ const generateFullAddress = (
     return parts.filter(Boolean).join(', ');
 };
 
-export const getAdminPlaces = async () => {
-    return prisma.place.findMany({
+interface GetAdminPlacesFilter {
+    search?: string;
+    category?: string;
+    ward?: string;
+    sortBy?: "name" | "createdAt" | "featured";
+    sortOrder?: "asc" | "desc";
+    limit?: number;
+    page?: number;
+}
+
+export const getAdminPlaces = async (
+    filters: GetAdminPlacesFilter = {}
+): Promise<{
+    data: Array<{
+        id: string;
+        name: string;
+        slug: string;
+        description: string | null;
+        district: string | null;
+        ward: string;
+        coverImageUrl: string | null;
+        isFeatured: boolean;
+        averageRating: Decimal;
+        categories: Array<{ categoryId: string; category: { id: string; name: string } }>;
+        createdAt: Date;
+    }>;
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}> => {
+    const {
+        search,
+        category,
+        ward,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+        limit = 10,
+        page = 1,
+    } = filters;
+
+    // Build where clause
+    const where: Prisma.PlaceWhereInput = {};
+
+    if (search) {
+        where.OR = [
+            { name: { contains: search, mode: "insensitive" } },
+            { description: { contains: search, mode: "insensitive" } },
+        ];
+    }
+
+    if (ward) {
+        where.ward = { equals: ward, mode: "insensitive" };
+    }
+
+    if (category) {
+        where.categories = {
+            some: {
+                categoryId: category,
+            },
+        };
+    }
+
+    // Build orderBy
+    let orderBy: Prisma.PlaceOrderByWithRelationInput = {};
+    if (sortBy === "name") {
+        orderBy = { name: sortOrder };
+    } else if (sortBy === "featured") {
+        orderBy = { isFeatured: sortOrder };
+    } else {
+        orderBy = { createdAt: sortOrder };
+    }
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count
+    const total = await prisma.place.count({ where });
+
+    // Get places
+    const places = await prisma.place.findMany({
+        where,
         select: {
             id: true,
             name: true,
+            slug: true,
+            description: true,
             district: true,
+            ward: true,
+            coverImageUrl: true,
+            isFeatured: true,
+            averageRating: true,
+            categories: {
+                select: {
+                    categoryId: true,
+                    category: {
+                        select: {
+                            id: true,
+                            name: true,
+                        },
+                    },
+                },
+            },
+            createdAt: true,
         },
-        orderBy: {
-            createdAt: "desc",
-        },
+        orderBy,
+        skip,
+        take: limit,
     });
+
+    return {
+        data: places,
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
 };
 
 export const createPlace = async (data: CreatePlaceInput) => {

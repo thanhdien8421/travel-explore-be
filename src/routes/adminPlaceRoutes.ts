@@ -1,7 +1,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import { getAdminPlaces, createPlace, updatePlace, deletePlace } from "../services/adminPlaceService.js";
-import { authenticateToken } from "../middleware/authMiddleware.js";
+import { authenticateToken, requireAdmin } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -9,23 +9,98 @@ const router = express.Router();
  * @swagger
  * /api/admin/places:
  *   get:
- *     summary: Get all places (Admin)
- *     description: Get all places with basic information for admin management
+ *     summary: Get all places (Admin only)
+ *     description: Get all places with filtering, searching, sorting, and pagination. Requires ADMIN role.
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name or description
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category ID
+ *       - in: query
+ *         name: ward
+ *         schema:
+ *           type: string
+ *         description: Filter by ward
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [name, createdAt, featured]
+ *         description: Sort by field
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Sort order
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Items per page
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
  *     responses:
  *       200:
- *         description: List of all places
+ *         description: List of places with pagination metadata
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - User is not an admin
  *       500:
  *         description: Server error
  */
-router.get("/", authenticateToken, async (_req: Request, res: Response) => {
+router.get("/", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
-        const places = await getAdminPlaces();
-        res.status(200).json(places);
+        const {
+            search,
+            category,
+            ward,
+            sortBy,
+            sortOrder,
+            limit,
+            page,
+        } = req.query;
+
+        // Parse and validate query parameters
+        const filters: {
+            search?: string;
+            category?: string;
+            ward?: string;
+            sortBy?: "name" | "createdAt" | "featured";
+            sortOrder?: "asc" | "desc";
+            limit?: number;
+            page?: number;
+        } = {};
+
+        if (search) filters.search = String(search);
+        if (category) filters.category = String(category);
+        if (ward) filters.ward = String(ward);
+        if (sortBy && ["name", "createdAt", "featured"].includes(String(sortBy))) {
+            filters.sortBy = String(sortBy) as "name" | "createdAt" | "featured";
+        }
+        if (sortOrder && ["asc", "desc"].includes(String(sortOrder))) {
+            filters.sortOrder = String(sortOrder) as "asc" | "desc";
+        }
+        if (limit) filters.limit = Math.max(1, Math.min(100, parseInt(String(limit), 10)));
+        if (page) filters.page = Math.max(1, parseInt(String(page), 10));
+
+        const result = await getAdminPlaces(filters);
+        res.status(200).json(result);
     } catch (error) {
         console.error("Failed to get admin places:", error);
         res.status(500).json({ message: "Server error" });
@@ -84,13 +159,15 @@ router.get("/", authenticateToken, async (_req: Request, res: Response) => {
  *       400:
  *         description: Bad request - missing required fields
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - User is not an admin
  *       409:
  *         description: Place already exists
  *       500:
  *         description: Server error
  */
-router.post("/", authenticateToken, async (req: Request, res: Response) => {
+router.post("/", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { name, ward } = req.body;
 
     if (!name || !ward) {
@@ -162,13 +239,15 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
  *       200:
  *         description: Place updated successfully
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - User is not an admin
  *       404:
  *         description: Place not found
  *       500:
  *         description: Server error
  */
-router.put("/:id", authenticateToken, async (req: Request, res: Response) => {
+router.put("/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { id } = req.params;
 
     if (!id) {
@@ -207,13 +286,15 @@ router.put("/:id", authenticateToken, async (req: Request, res: Response) => {
  *       204:
  *         description: Place deleted successfully
  *       401:
- *         description: Unauthorized
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - User is not an admin
  *       404:
  *         description: Place not found
  *       500:
  *         description: Server error
  */
-router.delete("/:id", authenticateToken, async (req: Request, res: Response) => {
+router.delete("/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { id } = req.params;
 
     if (!id) {
