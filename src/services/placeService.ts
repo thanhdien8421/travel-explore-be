@@ -45,20 +45,46 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
       longitude: true,
       coverImageUrl: true,
       averageRating: true,
+      categories: {
+        select: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      },
+      images: {
+        select: {
+          id: true,
+          imageUrl: true,
+          isCover: true,
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
     },
   });
 
-  return places.map((p: typeof places[0]) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    slug: p.slug,
-    district: p.district,
-    latitude: p.latitude?.toNumber() ?? null,
-    longitude: p.longitude?.toNumber() ?? null,
-    cover_image_url: getImageUrl(p.coverImageUrl),
-    average_rating: p.averageRating?.toNumber() ?? 0,
-  }));
+  return places.map((p: typeof places[0]) => {
+    // Get cover image from images array if available
+    const coverImage = p.images?.find(img => img.isCover);
+    const cover_image_url = coverImage ? getImageUrl(coverImage.imageUrl) : getImageUrl(p.coverImageUrl);
+    
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      slug: p.slug,
+      district: p.district,
+      latitude: p.latitude?.toNumber() ?? null,
+      longitude: p.longitude?.toNumber() ?? null,
+      cover_image_url,
+      average_rating: p.averageRating?.toNumber() ?? 0,
+      categories: p.categories.map(pc => pc.category),
+    };
+  });
 };
 
 export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
@@ -75,20 +101,46 @@ export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> 
       longitude: true,
       coverImageUrl: true,
       averageRating: true,
+      categories: {
+        select: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      },
+      images: {
+        select: {
+          id: true,
+          imageUrl: true,
+          isCover: true,
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
     },
   });
 
-  return places.map((p: typeof places[0]) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    slug: p.slug,
-    district: p.district,
-    latitude: p.latitude?.toNumber() ?? null,
-    longitude: p.longitude?.toNumber() ?? null,
-    cover_image_url: getImageUrl(p.coverImageUrl),
-    average_rating: p.averageRating?.toNumber() ?? 0,
-  }));
+  return places.map((p: typeof places[0]) => {
+    // Get cover image from images array if available
+    const coverImage = p.images?.find(img => img.isCover);
+    const cover_image_url = coverImage ? getImageUrl(coverImage.imageUrl) : getImageUrl(p.coverImageUrl);
+    
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      slug: p.slug,
+      district: p.district,
+      latitude: p.latitude?.toNumber() ?? null,
+      longitude: p.longitude?.toNumber() ?? null,
+      cover_image_url,
+      average_rating: p.averageRating?.toNumber() ?? 0,
+      categories: p.categories.map(pc => pc.category),
+    };
+  });
 };
 
 export const searchPlaces = async (options: SearchOptions): Promise<SearchResponse> => {
@@ -187,23 +239,49 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
       longitude: true,
       coverImageUrl: true,
       averageRating: true,
+      categories: {
+        select: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      },
+      images: {
+        select: {
+          id: true,
+          imageUrl: true,
+          isCover: true,
+        },
+        orderBy: { createdAt: 'desc' as const },
+      },
     },
     orderBy,
     skip,
     take: limit,
   });
 
-  const data = places.map((p: typeof places[0]) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    slug: p.slug,
-    district: p.district,
-    latitude: p.latitude?.toNumber() ?? null,
-    longitude: p.longitude?.toNumber() ?? null,
-    cover_image_url: getImageUrl(p.coverImageUrl),
-    average_rating: p.averageRating?.toNumber() ?? 0,
-  }));
+  const data = places.map((p: typeof places[0]) => {
+    // Get cover image from images array if available
+    const coverImage = p.images?.find(img => img.isCover);
+    const cover_image_url = coverImage ? getImageUrl(coverImage.imageUrl) : getImageUrl(p.coverImageUrl);
+    
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      slug: p.slug,
+      district: p.district,
+      latitude: p.latitude?.toNumber() ?? null,
+      longitude: p.longitude?.toNumber() ?? null,
+      cover_image_url,
+      average_rating: p.averageRating?.toNumber() ?? 0,
+      categories: p.categories.map(pc => pc.category),
+    };
+  });
 
   return {
     data,
@@ -219,42 +297,70 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
  * Lấy chi tiết một địa điểm theo slug
  */
 export const getPlaceBySlug = async (slug: string, userId?: string): Promise<PlaceDetail | null> => {
+  console.time(`getPlaceBySlug-${slug}`);
+  
+  // Query 1: Get main place data
+  console.time(`prisma-place-${slug}`);
   const place = await prisma.place.findUnique({
     where: { slug },
-    include: {
-      images: {
-        select: {
-          id: true,
-          imageUrl: true,
-          caption: true,
-        },
-      },
-      reviews: { 
-        select: {
-          id: true,
-          rating: true,
-          comment: true,
-          createdAt: true,
-          user: {
-            select: {
-              fullName: true,
-            },
-          },
-        },
-      },
-      userVisits: userId ? {
-        where: { userId },
-        select: { id: true },
-      } : false,
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      fullAddressGenerated: true,
+      streetAddress: true,
+      ward: true,
+      district: true,
+      provinceCity: true,
+      latitude: true,
+      longitude: true,
+      coverImageUrl: true,
+      openingHours: true,
+      priceInfo: true,
+      contactInfo: true,
+      tipsNotes: true,
+      isFeatured: true,
+      averageRating: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
     },
   });
+  console.timeEnd(`prisma-place-${slug}`);
 
-  // Only return active places
   if (!place || !place.isActive) return null;
 
-  type ImageRecord = typeof place.images[number];
-  type ReviewRecord = typeof place.reviews[number];
+  // Run queries 2, 3 in parallel (removed reviews query)
+  console.time(`parallel-queries-${slug}`);
+  const [images, visit] = await Promise.all([
+    // Query 2: Get images
+    prisma.placeImage.findMany({
+      where: { placeId: place.id },
+      select: {
+        id: true,
+        imageUrl: true,
+        caption: true,
+        isCover: true,
+      },
+    }),
+    // Query 3: Check if user visited (only if userId provided)
+    userId ? prisma.userVisit.findFirst({
+      where: {
+        placeId: place.id,
+        userId: userId,
+      },
+      select: { id: true },
+    }) : Promise.resolve(null),
+  ]);
+  console.timeEnd(`parallel-queries-${slug}`);
 
+  console.time(`data-mapping-${slug}`);
+  
+  // Get cover image from images array if available, fallback to coverImageUrl
+  const coverImage = images?.find(img => img.isCover);
+  const cover_image_url = coverImage ? getImageUrl(coverImage.imageUrl) : getImageUrl(place.coverImageUrl);
+  
   const result: PlaceDetail = {
     id: place.id,
     name: place.name,
@@ -267,7 +373,7 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
     city: place.provinceCity,
     latitude: place.latitude?.toNumber() ?? null,
     longitude: place.longitude?.toNumber() ?? null,
-    cover_image_url: getImageUrl(place.coverImageUrl),
+    cover_image_url,
     opening_hours: place.openingHours,
     price_info: place.priceInfo,
     contact_info: place.contactInfo,
@@ -276,26 +382,18 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
     average_rating: place.averageRating?.toNumber() ?? 0,
     created_at: place.createdAt,
     updated_at: place.updatedAt,
-    images: place.images.map((img: ImageRecord) => ({
+    images: images.map((img) => ({
       id: img.id,
       image_url: getImageUrl(img.imageUrl),
       caption: img.caption,
+      is_cover: img.isCover,
     })),
-    reviews: place.reviews.map((r: ReviewRecord) => ({
-      id: r.id,
-      rating: r.rating,
-      comment: r.comment,
-      created_at: r.createdAt,
-      user: {
-        full_name: r.user.fullName || "",
-      },
-    })),
+    reviews: [], // Empty - will be fetched separately
+    visited: !!visit,
   };
+  console.timeEnd(`data-mapping-${slug}`);
 
-  if (userId) {
-    result.visited = (place.userVisits?.length ?? 0) > 0;
-  }
-
+  console.timeEnd(`getPlaceBySlug-${slug}`);
   return result;
 };
 

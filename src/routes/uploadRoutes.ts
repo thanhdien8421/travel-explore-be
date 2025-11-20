@@ -2,6 +2,7 @@ import express from "express";
 import type { Request, Response } from "express";
 import { authenticateToken, type AuthRequest } from "../middleware/authMiddleware.js";
 import { createClient } from "@supabase/supabase-js";
+import { prisma } from "../lib/prisma.js";
 
 const router = express.Router();
 
@@ -79,12 +80,11 @@ router.post("/signed-url", authenticateToken, async (req: AuthRequest, res: Resp
   try {
     console.log("📝 Signed URL request received");
     console.log("Request body:", req.body);
-    console.log("Request headers:", req.headers);
     
     const supabaseClient = getSupabaseAdmin();
-    const { fileName } = req.body;
+    const { fileName, placeId, isCover, caption } = req.body;
 
-    console.log("fileName:", fileName, "type:", typeof fileName);
+    console.log("fileName:", fileName, "placeId:", placeId);
 
     if (!fileName || typeof fileName !== "string") {
       console.error("❌ Validation failed: fileName missing or not string");
@@ -111,6 +111,26 @@ router.post("/signed-url", authenticateToken, async (req: AuthRequest, res: Resp
     }
 
     console.log("✅ Signed URL created successfully");
+
+    // If placeId provided, save image record to database
+    if (placeId && typeof placeId === 'string') {
+      try {
+        console.log("💾 Saving image record to database...");
+        const placeImage = await prisma.placeImage.create({
+          data: {
+            placeId: placeId,
+            imageUrl: fileName,
+            isCover: isCover === true,
+            caption: caption || undefined,
+          },
+        });
+        console.log("✅ Image record saved:", placeImage.id);
+      } catch (dbError) {
+        console.error("⚠️  Warning: Failed to save image record, but upload proceeding:", dbError);
+        // Don't fail the whole request if DB save fails - upload can still proceed
+      }
+    }
+
     return res.json({
       signedUrl: data.signedUrl,
       fileName: fileName,
@@ -121,4 +141,174 @@ router.post("/signed-url", authenticateToken, async (req: AuthRequest, res: Resp
   }
 });
 
+// DELETE /api/upload/image/:imageId - Delete image from storage and database
+router.delete("/image/:imageId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { imageId } = req.params;
+
+    if (!imageId) {
+      return res.status(400).json({ error: "imageId is required" });
+    }
+
+    console.log("🗑️  Deleting image:", imageId);
+
+    // Get image record from database
+    const imageRecord = await prisma.placeImage.findUnique({
+      where: { id: imageId },
+    });
+
+    if (!imageRecord) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    // Delete from Supabase Storage
+    const supabaseClient = getSupabaseAdmin();
+    const { error: storageError } = await supabaseClient.storage
+      .from(storageBucket)
+      .remove([imageRecord.imageUrl]);
+
+    if (storageError) {
+      console.warn("⚠️  Warning: Failed to delete from storage:", storageError);
+      // Continue with DB deletion even if storage deletion fails
+    } else {
+      console.log("✅ Deleted from Supabase Storage:", imageRecord.imageUrl);
+    }
+
+    // Delete from database
+    await prisma.placeImage.delete({
+      where: { id: imageId },
+    });
+
+    console.log("✅ Deleted from database:", imageId);
+
+    return res.json({ 
+      message: "Image deleted successfully",
+      imageId,
+    });
+  } catch (error) {
+    console.error("❌ Error deleting image:", error);
+    return res.status(500).json({ error: "Failed to delete image" });
+  }
+});
+
+// PATCH /api/upload/image/:imageId - Update image metadata (cover flag, caption)
+router.patch("/image/:imageId", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { imageId } = req.params;
+    let { isCover, caption } = req.body;
+
+    if (!imageId) {
+      return res.status(400).json({ error: "imageId is required" });
+    }
+
+    console.log("✏️  Updating image:", imageId);
+    console.log("Request body:", req.body);
+
+    // Convert isCover to boolean if it's a string
+    if (typeof isCover === 'string') {
+      isCover = isCover === 'true';
+    }
+
+    // Verify image exists
+    const existingImage = await prisma.placeImage.findUnique({
+      where: { id: imageId },
+    });
+
+    if (!existingImage) {
+      console.error("❌ Image not found:", imageId);
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    // If setting this image as cover, we need to unset other covers for the same place
+    if (isCover === true) {
+      console.log("🔄 Setting as cover image, unsetting other covers for place:", existingImage.placeId);
+      
+      // Use a transaction to handle this atomically
+      await prisma.$transaction(async (tx) => {
+        // First, unset all covers for this place
+        await tx.placeImage.updateMany({
+          where: {
+            placeId: existingImage.placeId,
+            isCover: true,
+          },
+          data: {
+            isCover: false,
+          },
+        });
+
+        // Then set this image as cover
+        await tx.placeImage.update({
+          where: { id: imageId },
+          data: {
+            isCover: true,
+            ...(caption !== undefined && { caption }),
+          },
+        });
+      });
+
+      console.log("✅ Image set as cover successfully:", imageId);
+
+      return res.json({ 
+        message: "Image updated successfully",
+        image: {
+          id: existingImage.id,
+          image_url: existingImage.imageUrl,
+          caption: caption !== undefined ? caption : existingImage.caption,
+          is_cover: true,
+        },
+      });
+    } else {
+      // Just update the metadata without changing cover status
+      const updateData: any = {};
+      if (isCover !== undefined) {
+        updateData.isCover = Boolean(isCover);
+      }
+      if (caption !== undefined) {
+        updateData.caption = caption;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        console.log("⚠️  No fields to update");
+        return res.json({ 
+          message: "No updates made",
+          image: {
+            id: existingImage.id,
+            image_url: existingImage.imageUrl,
+            caption: existingImage.caption,
+            is_cover: existingImage.isCover,
+          },
+        });
+      }
+
+      const updatedImage = await prisma.placeImage.update({
+        where: { id: imageId },
+        data: updateData,
+      });
+
+      console.log("✅ Image updated successfully:", imageId);
+
+      return res.json({ 
+        message: "Image updated successfully",
+        image: {
+          id: updatedImage.id,
+          image_url: updatedImage.imageUrl,
+          caption: updatedImage.caption,
+          is_cover: updatedImage.isCover,
+        },
+      });
+    }
+  } catch (error) {
+    console.error("❌ Error updating image:", error);
+    console.error("Full error object:", {
+      message: (error as any).message,
+      code: (error as any).code,
+    });
+    return res.status(500).json({ 
+      error: "Failed to update image",
+      details: (error as any).message,
+    });
+  }
+});
+
 export default router;
+

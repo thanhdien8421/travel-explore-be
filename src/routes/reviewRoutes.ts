@@ -7,7 +7,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /places/{placeId}/reviews:
+ * /api/places/{placeId}/reviews:
  *   post:
  *     summary: Create a review for a place
  *     tags: [Reviews]

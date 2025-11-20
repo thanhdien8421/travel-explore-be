@@ -1,0 +1,40 @@
+| id                                   | name                          | slug                        |
+| ------------------------------------ | ----------------------------- | --------------------------- |
+| c79d95d6-add8-4957-92e4-57bbd9bf6a6f | Nhà hàng - Quán ăn            | nha-hang-quan-an            |
+| 304e7e8f-f87a-4431-a044-9edb489a31a7 | Quán cà phê                   | quan-ca-phe                 |
+| 1cb34489-b861-4d89-8af9-8fff962631eb | Bar/Pub                       | bar-pub-lounge              |
+| eeecf279-9029-4e9a-a0b4-9be91474db98 | Địa danh - Di tích            | dia-danh-di-tich            |
+| 8eae64be-da91-4eda-9ac8-a3fea0b7d375 | Bảo tàng - Triển lãm          | bao-tang-trien-lam          |
+| 80f35840-a58f-4b0a-8638-3a120ad43898 | Thiên nhiên - Không gian xanh | thien-nhien-khong-gian-xanh |
+| 001deb93-b529-4be8-9112-9a1a22ea91a4 | Mua sắm                       | mua-sam                     |
+| f5a2bc5b-ef4e-4f81-af64-1e16070aee9f | Giải trí - Sáng tạo           | giai-tri-sang-tao           |
+
+| row                                                                                      |
+| ---------------------------------------------------------------------------------------- |
+| (d9bfde1b-13c8-4a62-adbc-2b375596ffa5,"Dinh Độc Lập")                                    |
+| (63c3fa8a-a6af-4637-817c-d832e7e08419,"Bảo tàng Chứng tích Chiến tranh")                 |
+| (f3611fdc-a87f-49c6-b754-c5c66cc7ab6a,"Nhà thờ Đức Bà Sài Gòn")                          |
+| (48fc8d72-240c-4e02-b934-339ee5d0eb9c,"Bưu điện Trung tâm Sài Gòn")                      |
+| (7de92ac0-2aec-437c-bbd6-3fc59e98fa69,"Nhà hát Lớn Sài Gòn")                             |
+| (047f3a57-c219-4afe-818c-ba498c521dfe,"Chùa Ngọc Hoàng")                                 |
+| (5a1b18f7-d613-4360-8d01-8f237b79d070,"Chợ Bến Thành")                                   |
+| (d75b2091-bfb5-4507-9a9f-2d2250073360,"Chợ Lớn (Chợ Bình Tây)")                          |
+| (b09c24c9-4def-4f7c-ae7f-fc878d225d73,"Phố đi bộ Nguyễn Huệ")                            |
+| (e9b6626f-a4c7-4795-ad5e-535e362f3e11,"Phố Tây Bùi Viện")                                |
+| (e7e35001-2964-435a-ba06-00b6288a5652,"Thảo Cầm Viên Sài Gòn")                           |
+| (be846a4b-3aaa-449f-8185-f28ec5fa3484,"Tòa nhà Bitexco Financial Tower")                 |
+| (afe32382-474b-4431-b9ea-ec1a9c0ae4b7,"Landmark 81")                                     |
+| (04d27b3f-51a8-4322-aac5-04bbeea27a03,"Hồ Con Rùa")                                      |
+| (77d36794-cb1a-49b4-8d1d-f6c9e45cc59f,"Bảo tàng Mỹ thuật TP.HCM")                        |
+| (7b0fd63d-7e7e-4274-9be8-6e0355114066,"Bảo tàng Lịch sử Việt Nam")                       |
+| (b5a1b73a-b225-4097-aa2a-313b1564468f,"Tòa nhà Ủy ban Nhân dân TP.HCM")                  |
+| (777a1750-d7a5-4ece-9b12-68f49b207980,"Chùa Bửu Long")                                   |
+| (34c6b29b-f0ff-48b9-b22a-22d4b43bd18d,"Địa đạo Củ Chi")                                  |
+| (7c294b7c-fa28-45ed-a6ff-6bc792fc1059,"Công viên Văn hóa Suối Tiên")                     |
+| (af944a1e-2d34-4a3e-99ba-b2d6b1a220e9,"Hẻm Hào Sĩ Phường")                               |
+| (c4f66f92-67f1-4d57-9977-57e84b3a6a5b,"Bảo tàng Y học Cổ truyền Việt Nam (FITO Museum)") |
+| (576253a9-941f-481a-92cc-f891e7c1a561,"Bảo tàng Biệt Động Sài Gòn")                      |
+| (758b3408-e81a-4d12-b970-2ef676f1d166,"The Factory Contemporary Arts Centre")            |
+| (452b9ff5-8521-4c67-9488-ac91bc1cc95c," Khu dự trữ sinh quyển rừng ngập mặn Cần Giờ")    |
+| (372c25f2-b28a-41be-bc23-f25744f1df30,"Đầm sen Tam Đa")                                  |
+| (185d0af8-75b7-497b-90c6-fa62c8fd35cf,"Bãi Sau Vũng Tàu")                                |

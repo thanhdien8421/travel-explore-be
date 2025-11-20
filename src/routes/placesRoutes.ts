@@ -178,4 +178,65 @@ router.get("/:slug", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Get reviews for a place (lazy load endpoint)
+ */
+router.get("/:slug/reviews", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    if (!slug) {
+      return res.status(400).json({ error: "Slug is required" });
+    }
+
+    // Import here to avoid circular dependency
+    const { prisma } = await import("../lib/prisma.js");
+    const { getImageUrl } = await import("../lib/supabase.js");
+
+    // Get place ID by slug
+    const place = await prisma.place.findUnique({
+      where: { slug },
+      select: { id: true, isActive: true },
+    });
+
+    if (!place || !place.isActive) {
+      return res.status(404).json({ message: "Place not found" });
+    }
+
+    // Get reviews for this place
+    const reviews = await prisma.review.findMany({
+      where: { placeId: place.id },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        user: {
+          select: {
+            fullName: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    res.status(200).json({
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment,
+        created_at: r.createdAt,
+        user: {
+          full_name: r.user.fullName || "",
+        },
+      })),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 export default router;
+

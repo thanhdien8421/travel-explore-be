@@ -8,6 +8,7 @@ ALTER TABLE "places"
   ADD COLUMN "location_description" TEXT,
   ADD COLUMN "full_address_generated" TEXT,
   ADD COLUMN "province_city" VARCHAR(100) NOT NULL DEFAULT 'TP. Hồ Chí Minh',
+  ADD COLUMN "is_active" BOOLEAN NOT NULL DEFAULT true,
   ALTER COLUMN "district" DROP NOT NULL;
 
 -- CreateTable - Categories

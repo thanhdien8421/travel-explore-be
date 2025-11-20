@@ -7,7 +7,7 @@ const router = express.Router();
 
 /**
  * @swagger
- * /me/visits:
+ * /api/me/visits:
  *   post:
  *     summary: Mark a place as visited
  *     tags: [Visits]
@@ -61,7 +61,7 @@ router.post("/me/visits",
 
 /**
  * @swagger
- * /me/visits:
+ * /api/me/visits:
  *   get:
  *     summary: Get user's visit history
  *     tags: [Visits]

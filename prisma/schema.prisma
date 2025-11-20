@@ -37,16 +37,24 @@ model Place {
   userVisits             UserVisit[]
   categories             PlaceCategory[]
 
+  @@index([name])
+  @@index([ward])
+  @@index([isActive])
+  @@index([createdAt])
+  @@index([isFeatured])
   @@map("places")
 }
 
 model PlaceImage {
-  id       String  @id @default(uuid())
-  placeId  String  @map("place_id")
-  imageUrl String  @map("image_url") @db.VarChar(255)
-  caption  String? @db.VarChar(255)
-  place    Place   @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  placeId   String    @map("place_id")
+  imageUrl  String    @map("image_url") @db.VarChar(255)
+  caption   String?   @db.VarChar(255)
+  isCover   Boolean   @default(false) @map("is_cover")
+  createdAt DateTime  @default(now()) @map("created_at")
+  place     Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
+  @@index([placeId])
   @@map("place_images")
 }
 
@@ -80,6 +88,8 @@ model Review {
   place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([placeId])
+  @@index([userId])
   @@map("reviews")
 }
 
@@ -92,6 +102,8 @@ model UserVisit {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([placeId])
   @@map("user_visits")
 }
 
@@ -113,5 +125,6 @@ model PlaceCategory {
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([placeId, categoryId])
+  @@index([categoryId])
   @@map("place_categories")
 }

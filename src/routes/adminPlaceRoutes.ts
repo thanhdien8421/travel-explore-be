@@ -2,8 +2,94 @@ import express from "express";
 import type { Request, Response } from "express";
 import { getAdminPlaces, createPlace, updatePlace, deletePlace } from "../services/adminPlaceService.js";
 import { authenticateToken, requireAdmin } from "../middleware/authMiddleware.js";
+import { prisma } from "../lib/prisma.js";
 
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/admin/places/stats:
+ *   get:
+ *     summary: Get places statistics (Admin only)
+ *     description: Get statistics for dashboard (total, average rating, featured count)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name or description (optional)
+ *     responses:
+ *       200:
+ *         description: Statistics data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalLocations:
+ *                   type: number
+ *                 averageRating:
+ *                   type: number
+ *                 highQualityLocations:
+ *                   type: number
+ *                 ratedCount:
+ *                   type: number
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - User is not an admin
+ *       500:
+ *         description: Server error
+ */
+router.get("/stats", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    try {
+        const search = (req.query.search as string) || "";
+
+        console.time('getAdminStats-total');
+
+        // Build where clause
+        const where: any = {};
+        if (search) {
+            where.OR = [
+                { name: { contains: search, mode: "insensitive" } },
+                { description: { contains: search, mode: "insensitive" } },
+            ];
+        }
+
+        // Get all matching places for stats
+        console.time('getAdminStats-findMany');
+        const places = await prisma.place.findMany({
+            where,
+            select: {
+                isFeatured: true,
+                averageRating: true,
+            },
+        });
+        console.timeEnd('getAdminStats-findMany');
+
+        const totalLocations = places.length;
+        const placesWithRatings = places.filter(p => Number(p.averageRating) > 0);
+        const averageRating = placesWithRatings.length > 0
+            ? (placesWithRatings.reduce((sum, p) => sum + Number(p.averageRating), 0) / placesWithRatings.length)
+            : 0;
+        const highQualityLocations = places.filter(p => p.isFeatured).length;
+
+        console.timeEnd('getAdminStats-total');
+
+        res.status(200).json({
+            totalLocations,
+            averageRating: Math.min(5, averageRating),
+            highQualityLocations,
+            ratedCount: placesWithRatings.length,
+        });
+    } catch (error: unknown) {
+        console.error("Failed to get stats:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
 
 /**
  * @swagger
@@ -181,6 +267,83 @@ router.post("/", authenticateToken, requireAdmin, async (req: Request, res: Resp
         console.error("Failed to create place:", error);
         if (error instanceof Error && (error as any).code === 'P2002') {
             return res.status(409).json({ message: 'A place with this name already exists.' });
+        }
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+/**
+ * @swagger
+ * /api/admin/places/{id}:
+ *   get:
+ *     summary: Get a place by ID (Admin)
+ *     description: Get detailed information about a specific place by ID
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Place ID (UUID)
+ *     responses:
+ *       200:
+ *         description: Place details
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - User is not an admin
+ *       404:
+ *         description: Place not found
+ *       500:
+ *         description: Server error
+ */
+router.get("/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
+    const { id } = req.params;
+
+    if (!id) {
+        return res.status(400).json({ message: "Place ID is required." });
+    }
+
+    try {
+        const place = await prisma.place.findUniqueOrThrow({
+            where: { id },
+            include: {
+                categories: {
+                    include: {
+                        category: true,
+                    },
+                },
+                images: {
+                    orderBy: { createdAt: 'desc' },
+                },
+            },
+        });
+
+        // Transform to match API response format
+        const transformedPlace = {
+            ...place,
+            categories: place.categories.map(pc => ({
+                id: pc.category.id,
+                name: pc.category.name,
+                slug: pc.category.slug,
+            })),
+            images: place.images.map(img => ({
+                id: img.id,
+                image_url: img.imageUrl,
+                caption: img.caption,
+                is_cover: img.isCover,
+                created_at: img.createdAt,
+            })),
+        };
+
+        res.status(200).json(transformedPlace);
+    } catch (error: unknown) {
+        console.error("Failed to get place:", error);
+        if (error instanceof Error && (error as any).code === 'P2025') {
+            return res.status(404).json({ message: 'Place not found.' });
         }
         res.status(500).json({ message: "Server error" });
     }

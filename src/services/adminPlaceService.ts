@@ -80,9 +80,11 @@ export const getAdminPlaces = async (
         ward: string;
         coverImageUrl: string | null;
         isFeatured: boolean;
+        isActive: boolean;
         averageRating: Decimal;
         categories: Array<{ categoryId: string; category: { id: string; name: string } }>;
         createdAt: Date;
+        images?: Array<{ id: string; image_url: string; is_cover: boolean }>;
     }>;
     pagination: {
         page: number;
@@ -91,6 +93,7 @@ export const getAdminPlaces = async (
         totalPages: number;
     };
 }> => {
+    console.time('getAdminPlaces-total');
     const {
         search,
         category,
@@ -137,9 +140,12 @@ export const getAdminPlaces = async (
     const skip = (page - 1) * limit;
 
     // Get total count
+    console.time('getAdminPlaces-count');
     const total = await prisma.place.count({ where });
+    console.timeEnd('getAdminPlaces-count');
 
     // Get places
+    console.time('getAdminPlaces-findMany');
     const places = await prisma.place.findMany({
         where,
         select: {
@@ -151,6 +157,7 @@ export const getAdminPlaces = async (
             ward: true,
             coverImageUrl: true,
             isFeatured: true,
+            isActive: true,
             averageRating: true,
             categories: {
                 select: {
@@ -163,15 +170,36 @@ export const getAdminPlaces = async (
                     },
                 },
             },
+            images: {
+                select: {
+                    id: true,
+                    imageUrl: true,
+                    isCover: true,
+                },
+                orderBy: { createdAt: 'desc' as const },
+            },
             createdAt: true,
         },
         orderBy,
         skip,
         take: limit,
     });
+    console.timeEnd('getAdminPlaces-findMany');
+
+    console.timeEnd('getAdminPlaces-total');
+
+    // Transform response to snake_case for consistency with frontend
+    const transformedPlaces = places.map((place) => ({
+        ...place,
+        images: place.images?.map((img) => ({
+            id: img.id,
+            image_url: img.imageUrl,
+            is_cover: img.isCover,
+        })),
+    }));
 
     return {
-        data: places,
+        data: transformedPlaces,
         pagination: {
             page,
             limit,
@@ -277,6 +305,7 @@ interface UpdatePlaceInput {
     contactInfo?: string;
     tipsNotes?: string;
     isFeatured?: boolean;
+    isActive?: boolean;
     categoryIds?: string[];
 }
 
@@ -300,6 +329,7 @@ export const updatePlace = async (id: string, data: UpdatePlaceInput) => {
     if (data.tipsNotes !== undefined) updateData.tipsNotes = data.tipsNotes;
     if (data.isFeatured !== undefined) updateData.isFeatured = data.isFeatured;
     if (data.coverImageUrl !== undefined) updateData.coverImageUrl = data.coverImageUrl;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
     // Update coordinates
     if (data.latitude !== undefined) {

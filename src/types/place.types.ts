@@ -8,6 +8,11 @@ export interface PlaceSummary {
   longitude: number | null;
   cover_image_url: string | null;
   average_rating: number;
+  categories?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+  }>;
 }
 
 export interface PlaceDetail {
@@ -41,6 +46,7 @@ export interface PlaceDetail {
     id: string;
     image_url: string | null;
     caption?: string | null;
+    is_cover?: boolean;
   }[];
   reviews: {
     id: string;
