@@ -1,7 +1,8 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, PlaceStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import axios from "axios";
 import { prisma } from "../lib/prisma.js";
+import { generatePlaceSummary } from "./aiService.js";
 
 const generateSlug = (name: string): string => {
     return name
@@ -30,6 +31,8 @@ interface CreatePlaceInput {
     tipsNotes?: string;
     isFeatured?: boolean;
     categoryIds?: string[];
+    createdById?: string;
+    isAdmin?: boolean;
 }
 
 /**
@@ -62,6 +65,7 @@ interface GetAdminPlacesFilter {
     search?: string;
     category?: string;
     ward?: string;
+    status?: PlaceStatus;
     sortBy?: "name" | "createdAt" | "featured";
     sortOrder?: "asc" | "desc";
     limit?: number;
@@ -81,9 +85,11 @@ export const getAdminPlaces = async (
         coverImageUrl: string | null;
         isFeatured: boolean;
         isActive: boolean;
+        status: string;
         averageRating: Decimal;
         categories: Array<{ categoryId: string; category: { id: string; name: string } }>;
         createdAt: Date;
+        createdBy?: { id: string; fullName: string | null; email: string } | null;
         images?: Array<{ id: string; image_url: string; is_cover: boolean }>;
     }>;
     pagination: {
@@ -98,6 +104,7 @@ export const getAdminPlaces = async (
         search,
         category,
         ward,
+        status,
         sortBy = "createdAt",
         sortOrder = "desc",
         limit = 10,
@@ -124,6 +131,11 @@ export const getAdminPlaces = async (
                 categoryId: category,
             },
         };
+    }
+
+    // Filter by status (PENDING, APPROVED, REJECTED)
+    if (status) {
+        where.status = status;
     }
 
     // Build orderBy
@@ -158,6 +170,7 @@ export const getAdminPlaces = async (
             coverImageUrl: true,
             isFeatured: true,
             isActive: true,
+            status: true,
             averageRating: true,
             categories: {
                 select: {
@@ -179,6 +192,13 @@ export const getAdminPlaces = async (
                 orderBy: { createdAt: 'desc' as const },
             },
             createdAt: true,
+            createdBy: {
+                select: {
+                    id: true,
+                    fullName: true,
+                    email: true,
+                },
+            },
         },
         orderBy,
         skip,
@@ -218,10 +238,15 @@ export const createPlace = async (data: CreatePlaceInput) => {
         provinceCity = "TP. Hồ Chí Minh",
         locationDescription,
         categoryIds = [],
+        createdById,
+        isAdmin = false,
         ...restOfData
     } = data;
 
     const slug = generateSlug(name);
+
+    // Status: APPROVED if admin, PENDING if regular user
+    const status: PlaceStatus = isAdmin ? PlaceStatus.APPROVED : PlaceStatus.PENDING;
 
     // Use provided coordinates if available, otherwise geocode
     let latitude: number | null = data.latitude ?? null;
@@ -273,6 +298,8 @@ export const createPlace = async (data: CreatePlaceInput) => {
             fullAddressGenerated,
             latitude: latitude ? new Prisma.Decimal(latitude) : null,
             longitude: longitude ? new Prisma.Decimal(longitude) : null,
+            status: status,
+            createdById: createdById || null,
             // Add categories if provided
             ...(categoryIds.length > 0 && {
                 categories: {
@@ -310,7 +337,7 @@ interface UpdatePlaceInput {
 }
 
 export const updatePlace = async (id: string, data: UpdatePlaceInput) => {
-    const updateData: any = {};
+    const updateData: Prisma.PlaceUpdateInput = {};
 
     // Only update fields that are provided
     if (data.name) {
@@ -350,12 +377,18 @@ export const updatePlace = async (id: string, data: UpdatePlaceInput) => {
         // Get current place to get unchanged fields
         const currentPlace = await prisma.place.findUnique({ where: { id } });
         if (currentPlace) {
+            const streetAddressValue = typeof updateData.streetAddress === 'string' ? updateData.streetAddress : (updateData.streetAddress === null ? null : currentPlace.streetAddress);
+            const wardValue = typeof updateData.ward === 'string' ? updateData.ward : currentPlace.ward;
+            const districtValue = typeof updateData.district === 'string' ? updateData.district : (updateData.district === null ? null : currentPlace.district);
+            const provinceCityValue = typeof updateData.provinceCity === 'string' ? updateData.provinceCity : currentPlace.provinceCity;
+            const locationDescriptionValue = typeof updateData.locationDescription === 'string' ? updateData.locationDescription : (updateData.locationDescription === null ? null : currentPlace.locationDescription);
+            
             updateData.fullAddressGenerated = generateFullAddress(
-                updateData.streetAddress ?? currentPlace.streetAddress,
-                updateData.ward ?? currentPlace.ward,
-                updateData.district ?? currentPlace.district,
-                updateData.provinceCity ?? currentPlace.provinceCity,
-                updateData.locationDescription ?? currentPlace.locationDescription
+                streetAddressValue,
+                wardValue,
+                districtValue,
+                provinceCityValue,
+                locationDescriptionValue
             );
         }
     }
@@ -387,12 +420,104 @@ export const updatePlace = async (id: string, data: UpdatePlaceInput) => {
     return updatedPlace;
 };
 
-export const deletePlace = async (id: string) => {
-    // Soft delete: just set isActive to false
-    const deletedPlace = await prisma.place.update({
+/**
+ * Delete a place - soft or hard delete
+ * Soft delete: Sets isActive to false (default)
+ * Hard delete: Permanently removes from database
+ */
+export const deletePlace = async (id: string, permanent: boolean = false) => {
+    if (permanent) {
+        // Hard delete - permanently remove
+        await prisma.place.delete({
+            where: { id },
+        });
+        return null;
+    } else {
+        // Soft delete: just set isActive to false
+        const deletedPlace = await prisma.place.update({
+            where: { id },
+            data: { isActive: false },
+        });
+        return deletedPlace;
+    }
+};
+
+/**
+ * Restore a soft-deleted place
+ */
+export const restorePlace = async (id: string) => {
+    const place = await prisma.place.update({
         where: { id },
-        data: { isActive: false },
+        data: { isActive: true },
+    });
+    return place;
+};
+
+/**
+ * Approve a pending place
+ */
+export const approvePlace = async (id: string) => {
+    const place = await prisma.place.update({
+        where: { id },
+        data: { status: PlaceStatus.APPROVED },
+    });
+    return place;
+};
+
+/**
+ * Reject a pending place
+ */
+export const rejectPlace = async (id: string) => {
+    const place = await prisma.place.update({
+        where: { id },
+        data: { status: PlaceStatus.REJECTED },
+    });
+    return place;
+};
+
+/**
+ * Get pending places count (for admin dashboard)
+ */
+export const getPendingPlacesCount = async (): Promise<number> => {
+    return prisma.place.count({
+        where: { status: PlaceStatus.PENDING },
+    });
+};
+
+export const generateAndSaveSummary = async (placeId: string) => {
+    // 1. Get place and its reviews
+    const place = await prisma.place.findUnique({
+        where: { id: placeId },
+        include: {
+            reviews: {
+                select: {
+                    comment: true,
+                },
+                orderBy: {
+                    createdAt: 'desc'
+                },
+                take: 50 // Limit to last 50 reviews to match AI service limit
+            }
+        }
     });
 
-    return deletedPlace;
+    if (!place) {
+        throw new Error("Place not found");
+    }
+
+    // 2. Extract comments
+    const comments = place.reviews
+        .map(r => r.comment)
+        .filter((c): c is string => c !== null && c !== undefined && c.trim() !== "");
+
+    // 3. Generate summary
+    const summary = await generatePlaceSummary(comments);
+
+    // 4. Save summary to database
+    const updatedPlace = await prisma.place.update({
+        where: { id: placeId },
+        data: { summary }
+    });
+
+    return updatedPlace;
 };

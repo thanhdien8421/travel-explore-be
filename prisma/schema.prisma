@@ -9,71 +9,76 @@ datasource db {
 }
 
 model Place {
-  id                     String          @id @default(uuid())
-  name                   String          @db.VarChar(255)
-  slug                   String          @unique @db.VarChar(255)
-  description            String?
-  streetAddress          String?         @map("street_address") @db.VarChar(255)
-  ward                   String          @db.VarChar(100)
-  district               String?         @db.VarChar(100)
-  provinceCity           String          @default("TP. Hồ Chí Minh") @map("province_city") @db.VarChar(100)
-  locationDescription    String?         @map("location_description")
-  fullAddressGenerated   String?         @map("full_address_generated")
-  latitude               Decimal?        @db.Decimal(9, 6)
-  longitude              Decimal?        @db.Decimal(10, 6)
-  coverImageUrl          String?         @map("cover_image_url") @db.VarChar(255)
-  openingHours           String?         @map("opening_hours") @db.VarChar(100)
-  priceInfo              String?         @map("price_info") @db.VarChar(100)
-  contactInfo            String?         @map("contact_info") @db.VarChar(100)
-  tipsNotes              String?         @map("tips_notes")
-  isFeatured             Boolean         @default(false) @map("is_featured")
-  isActive               Boolean         @default(true) @map("is_active")
-  averageRating          Decimal         @default(0.0) @map("average_rating") @db.Decimal(2, 1)
-  createdAt              DateTime        @default(now()) @map("created_at")
-  updatedAt              DateTime        @updatedAt @map("updated_at")
-  
-  images                 PlaceImage[]
-  reviews                Review[]
-  userVisits             UserVisit[]
-  categories             PlaceCategory[]
+  id                   String           @id @default(uuid())
+  name                 String           @db.VarChar(255)
+  slug                 String           @unique @db.VarChar(255)
+  description          String?
+  district             String?          @db.VarChar(100)
+  latitude             Decimal?         @db.Decimal(9, 6)
+  longitude            Decimal?         @db.Decimal(10, 6)
+  coverImageUrl        String?          @map("cover_image_url") @db.VarChar(255)
+  openingHours         String?          @map("opening_hours") @db.VarChar(100)
+  priceInfo            String?          @map("price_info") @db.VarChar(100)
+  contactInfo          String?          @map("contact_info") @db.VarChar(100)
+  tipsNotes            String?          @map("tips_notes")
+  isFeatured           Boolean          @default(false) @map("is_featured")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+  averageRating        Decimal          @default(0.0) @map("average_rating") @db.Decimal(2, 1)
+  streetAddress        String?          @map("street_address") @db.VarChar(255)
+  ward                 String           @db.VarChar(100)
+  locationDescription  String?          @map("location_description")
+  fullAddressGenerated String?          @map("full_address_generated")
+  provinceCity         String           @default("TP. Hồ Chí Minh") @map("province_city") @db.VarChar(100)
+  isActive             Boolean          @default(true) @map("is_active")
+  createdById          String?          @map("created_by")
+  summary              String?          @db.Text
+  status               PlaceStatus      @default(APPROVED) @map("status")
+  bookings             Booking[]
+  categories           PlaceCategory[]
+  images               PlaceImage[]
+  createdBy            User?            @relation("PlaceCreator", fields: [createdById], references: [id])
+  reviews              Review[]
+  travelPlanItems      TravelPlanItem[]
+  userVisits           UserVisit[]
 
   @@index([name])
   @@index([ward])
   @@index([isActive])
   @@index([createdAt])
   @@index([isFeatured])
+  @@index([status])
   @@map("places")
 }
 
 model PlaceImage {
-  id        String    @id @default(uuid())
-  placeId   String    @map("place_id")
-  imageUrl  String    @map("image_url") @db.VarChar(255)
-  caption   String?   @db.VarChar(255)
-  isCover   Boolean   @default(false) @map("is_cover")
-  createdAt DateTime  @default(now()) @map("created_at")
-  place     Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  placeId   String   @map("place_id")
+  imageUrl  String   @map("image_url") @db.VarChar(255)
+  caption   String?  @db.VarChar(255)
+  isCover   Boolean  @default(false) @map("is_cover")
+  createdAt DateTime @default(now()) @map("created_at")
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@index([placeId])
   @@map("place_images")
 }
 
-enum UserRole {
-  ADMIN
-  USER
-}
-
 model User {
-  id           String      @id @default(uuid())
-  fullName     String?     @map("full_name") @db.VarChar(100)
-  email        String      @unique @db.VarChar(255)
-  passwordHash String      @map("password_hash") @db.VarChar(255)
-  role         UserRole    @default(USER)
-  createdAt    DateTime    @default(now()) @map("created_at")
-  
-  reviews      Review[]
-  userVisits   UserVisit[]
+  id            String       @id @default(uuid())
+  fullName      String?      @map("full_name") @db.VarChar(100)
+  email         String       @unique @db.VarChar(255)
+  passwordHash  String       @map("password_hash") @db.VarChar(255)
+  role          UserRole     @default(USER)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  isActive      Boolean      @default(true) @map("is_active")
+  bookings      Booking[]
+  createdPlaces Place[]      @relation("PlaceCreator")
+  reviews       Review[]
+  travelPlans   TravelPlan[]
+  userVisits    UserVisit[]
 
+  @@index([isActive])
   @@map("users")
 }
 
@@ -84,7 +89,6 @@ model Review {
   rating    Int      @db.SmallInt
   comment   String?
   createdAt DateTime @default(now()) @map("created_at")
-  
   place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -98,9 +102,8 @@ model UserVisit {
   userId    String   @map("user_id")
   placeId   String   @map("place_id")
   visitedAt DateTime @default(now()) @map("visited_at")
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([placeId])
@@ -108,11 +111,10 @@ model UserVisit {
 }
 
 model Category {
-  id       String          @id @default(uuid())
-  name     String          @unique @db.VarChar(100)
-  slug     String          @unique @db.VarChar(100)
-  
-  places   PlaceCategory[]
+  id     String          @id @default(uuid())
+  name   String          @unique @db.VarChar(100)
+  slug   String          @unique @db.VarChar(100)
+  places PlaceCategory[]
 
   @@map("categories")
 }
@@ -120,11 +122,84 @@ model Category {
 model PlaceCategory {
   placeId    String   @map("place_id")
   categoryId String   @map("category_id")
-  
-  place      Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  place      Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
 
   @@id([placeId, categoryId])
   @@index([categoryId])
   @@map("place_categories")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  placeId     String        @map("place_id")
+  userId      String        @map("user_id")
+  bookingDate DateTime      @map("booking_date")
+  guestCount  Int           @map("guest_count")
+  note        String?
+  status      BookingStatus @default(PENDING)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  place       Place         @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([placeId])
+  @@index([userId])
+  @@index([status])
+  @@map("bookings")
+}
+
+model PartnerLead {
+  id           String   @id @default(uuid())
+  businessName String   @map("business_name") @db.VarChar(255)
+  contactName  String   @map("contact_name") @db.VarChar(100)
+  phone        String   @db.VarChar(20)
+  email        String   @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("partner_leads")
+}
+
+model TravelPlan {
+  id        String           @id @default(uuid())
+  userId    String           @map("user_id")
+  name      String           @db.VarChar(255)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  items     TravelPlanItem[]
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("travel_plans")
+}
+
+model TravelPlanItem {
+  planId  String     @map("plan_id")
+  placeId String     @map("place_id")
+  order   Int        @default(0)
+  addedAt DateTime   @default(now()) @map("added_at")
+  place   Place      @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  plan    TravelPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([planId, placeId])
+  @@index([placeId])
+  @@map("travel_plan_items")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+  PARTNER
+  CONTRIBUTOR
+}
+
+enum PlaceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
 }

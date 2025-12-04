@@ -1,6 +1,7 @@
 import type { PlaceSummary, PlaceDetail } from "../types/place.types.js";
 import { getImageUrl } from "../lib/supabase.js";
 import { prisma } from "../lib/prisma.js";
+import { Prisma, PlaceStatus } from "@prisma/client";
 
 // Helper function to remove Vietnamese diacritics
 const removeDiacritics = (str: string): string => {
@@ -33,14 +34,14 @@ interface SearchResponse {
 
 export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
   const places = await prisma.place.findMany({
-    where: { isFeatured: true, isActive: true },
+    where: { isFeatured: true, isActive: true, status: PlaceStatus.APPROVED },
     take: limit,
     select: {
       id: true,
       name: true,
       description: true,
       slug: true,
-      district: true,
+      ward: true,
       latitude: true,
       longitude: true,
       coverImageUrl: true,
@@ -77,7 +78,7 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
       name: p.name,
       description: p.description,
       slug: p.slug,
-      district: p.district,
+      ward: p.ward,
       latitude: p.latitude?.toNumber() ?? null,
       longitude: p.longitude?.toNumber() ?? null,
       cover_image_url,
@@ -89,14 +90,14 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
 
 export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
   const places = await prisma.place.findMany({
-    where: { isActive: true },
+    where: { isActive: true, status: PlaceStatus.APPROVED },
     take: limit,
     select: {
       id: true,
       name: true,
       description: true,
       slug: true,
-      district: true,
+      ward: true,
       latitude: true,
       longitude: true,
       coverImageUrl: true,
@@ -133,7 +134,7 @@ export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> 
       name: p.name,
       description: p.description,
       slug: p.slug,
-      district: p.district,
+      ward: p.ward,
       latitude: p.latitude?.toNumber() ?? null,
       longitude: p.longitude?.toNumber() ?? null,
       cover_image_url,
@@ -157,7 +158,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
   const skip = (page - 1) * limit;
 
   // Build where clause
-  const where: any = { isActive: true };
+  const where: Prisma.PlaceWhereInput = { isActive: true, status: PlaceStatus.APPROVED };
 
   // Search by name, description, or full_address_generated (case-insensitive)
   if (q) {
@@ -213,7 +214,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
   }
 
   // Sort options
-  let orderBy: any = { name: "asc" };
+  let orderBy: Prisma.PlaceOrderByWithRelationInput = { name: "asc" };
   if (sortBy === "rating_desc") {
     orderBy = { averageRating: "desc" };
   } else if (sortBy === "rating_asc") {
@@ -234,7 +235,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
       name: true,
       description: true,
       slug: true,
-      district: true,
+      ward: true,
       latitude: true,
       longitude: true,
       coverImageUrl: true,
@@ -274,7 +275,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
       name: p.name,
       description: p.description,
       slug: p.slug,
-      district: p.district,
+      ward: p.ward,
       latitude: p.latitude?.toNumber() ?? null,
       longitude: p.longitude?.toNumber() ?? null,
       cover_image_url,
@@ -295,14 +296,19 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
 
 /**
  * Lấy chi tiết một địa điểm theo slug
+ * Chỉ trả về places với status APPROVED cho public access
  */
 export const getPlaceBySlug = async (slug: string, userId?: string): Promise<PlaceDetail | null> => {
   console.time(`getPlaceBySlug-${slug}`);
   
-  // Query 1: Get main place data
+  // Query 1: Get main place data - only APPROVED and active places
   console.time(`prisma-place-${slug}`);
-  const place = await prisma.place.findUnique({
-    where: { slug },
+  const place = await prisma.place.findFirst({
+    where: { 
+      slug,
+      isActive: true,
+      status: PlaceStatus.APPROVED 
+    },
     select: {
       id: true,
       name: true,
@@ -320,6 +326,7 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
       priceInfo: true,
       contactInfo: true,
       tipsNotes: true,
+      summary: true,
       isFeatured: true,
       averageRating: true,
       isActive: true,
@@ -329,7 +336,7 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
   });
   console.timeEnd(`prisma-place-${slug}`);
 
-  if (!place || !place.isActive) return null;
+  if (!place) return null;
 
   // Run queries 2, 3 in parallel (removed reviews query)
   console.time(`parallel-queries-${slug}`);
@@ -378,6 +385,7 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
     price_info: place.priceInfo,
     contact_info: place.contactInfo,
     tips_notes: place.tipsNotes,
+    summary: place.summary,
     is_featured: place.isFeatured,
     average_rating: place.averageRating?.toNumber() ?? 0,
     created_at: place.createdAt,

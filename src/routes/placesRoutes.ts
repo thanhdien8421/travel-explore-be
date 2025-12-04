@@ -1,10 +1,13 @@
 import express from "express";
 import type { Request, Response } from "express";
 import { getFeaturedPlaces, getPlaceBySlug, getAllPlaces, searchPlaces } from "../services/placeService.js";
+import { createPlace } from "../services/adminPlaceService.js";
+import { authenticateToken, type AuthRequest } from "../middleware/authMiddleware.js";
 import jwt from "jsonwebtoken";
+import axios from "axios";
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
+const JWT_SECRET = process.env.JWT_SECRET || "travel-explore-secret-key";
 
 /**
  * @swagger
@@ -125,6 +128,90 @@ router.get("/", async (req: Request, res: Response) => {
 
 /**
  * @swagger
+ * /api/places/search-ai:
+ *   get:
+ *     summary: AI-powered natural language search for places
+ *     description: Search places using natural language queries with AI embeddings
+ *     tags: [Places]
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Natural language search query
+ *         example: "quiet cafe to work"
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 3
+ *         description: Maximum number of places to return
+ *     responses:
+ *       200:
+ *         description: List of matching places
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 pagination:
+ *                   type: object
+ *       500:
+ *         description: Server error
+ */
+router.get("/search-ai", async (req: Request, res: Response) => {
+  try {
+    const query = (req.query.query as string) || "";
+    const limit = parseInt(req.query.limit as string) || 3;
+
+    if (!query) {
+      return res.status(400).json({ message: "Query parameter is required" });
+    }
+
+    // Try AI search first
+    try {
+      const aiResponse = await axios.post('http://localhost:3001/search', { query });
+      const aiResults = aiResponse.data.results.slice(0, limit);
+
+      // Fetch full place details for the AI results
+      const placePromises = aiResults.map(async (result: any) => {
+        const place = await getPlaceBySlug(result.slug);
+        return place ? { ...place, aiSimilarity: result.similarity } : null;
+      });
+      const places = (await Promise.all(placePromises)).filter(p => p);
+
+      return res.status(200).json({
+        data: places,
+        pagination: {
+          totalItems: places.length,
+          totalPages: 1,
+          currentPage: 1,
+        },
+      });
+    } catch (aiError) {
+      const errorMessage = aiError instanceof Error ? aiError.message : String(aiError);
+      console.warn('AI search failed, falling back to keyword search:', errorMessage);
+      // Fallback to keyword search
+      const result = await searchPlaces({
+        q: query,
+        limit,
+        page: 1,
+      });
+      return res.status(200).json(result);
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
  * /api/places/{slug}:
  *   get:
  *     summary: Get place details by slug
@@ -152,11 +239,11 @@ router.get("/:slug", async (req: Request, res: Response) => {
     if (!slug) {
       return res.status(400).json({ error: "Slug is required" });
     }
-    
+
     // Extract userId from auth header if present
     const authHeader = req.headers.authorization;
     let userId: string | undefined;
-    
+
     if (authHeader?.startsWith("Bearer ")) {
       try {
         const token = authHeader.substring(7);
@@ -166,12 +253,65 @@ router.get("/:slug", async (req: Request, res: Response) => {
         // If token verification fails, continue without userId
       }
     }
-    
+
     const place = await getPlaceBySlug(slug, userId);
 
     if (!place) return res.status(404).json({ message: "Place not found" });
 
     res.status(200).json(place);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/places/{slug}/summary:
+ *   get:
+ *     summary: Get AI-generated summary for a place
+ *     description: Retrieve the AI-generated summary based on user reviews (lazy load endpoint)
+ *     tags: [Places]
+ *     parameters:
+ *       - in: path
+ *         name: slug
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Place slug
+ *     responses:
+ *       200:
+ *         description: Place summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 summary:
+ *                   type: string
+ *                   nullable: true
+ *       404:
+ *         description: Place not found
+ */
+router.get("/:slug/summary", async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    if (!slug) {
+      return res.status(400).json({ error: "Slug is required" });
+    }
+
+    const { prisma } = await import("../lib/prisma.js");
+
+    const place = await prisma.place.findUnique({
+      where: { slug },
+      select: { id: true, isActive: true, summary: true },
+    });
+
+    if (!place || !place.isActive) {
+      return res.status(404).json({ message: "Place not found" });
+    }
+
+    res.status(200).json({ summary: place.summary });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -234,6 +374,110 @@ router.get("/:slug/reviews", async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/**
+ * @swagger
+ * /api/places/submit:
+ *   post:
+ *     summary: Submit a new place (Authenticated users only)
+ *     description: Users can submit new places for review. Submitted places will have PENDING status and need admin approval.
+ *     tags: [Places]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - ward
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Place name
+ *               description:
+ *                 type: string
+ *                 description: Place description
+ *               streetAddress:
+ *                 type: string
+ *                 description: Street address
+ *               ward:
+ *                 type: string
+ *                 description: Ward/phường name
+ *               district:
+ *                 type: string
+ *                 description: District/quận name
+ *               provinceCity:
+ *                 type: string
+ *                 description: Province/city name
+ *               locationDescription:
+ *                 type: string
+ *                 description: Additional location description
+ *               latitude:
+ *                 type: number
+ *                 description: Latitude coordinate
+ *               longitude:
+ *                 type: number
+ *                 description: Longitude coordinate
+ *               coverImageUrl:
+ *                 type: string
+ *                 description: Cover image URL
+ *               openingHours:
+ *                 type: string
+ *                 description: Opening hours
+ *               priceInfo:
+ *                 type: string
+ *                 description: Price information
+ *               contactInfo:
+ *                 type: string
+ *                 description: Contact information
+ *               tipsNotes:
+ *                 type: string
+ *                 description: Tips and notes
+ *               categoryIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of category IDs
+ *     responses:
+ *       201:
+ *         description: Place submitted successfully (pending approval)
+ *       400:
+ *         description: Missing required fields
+ *       401:
+ *         description: Unauthorized - Authentication required
+ *       500:
+ *         description: Server error
+ */
+router.post("/submit", authenticateToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, ward } = req.body;
+
+    if (!name || !ward) {
+      return res.status(400).json({ message: "Name and ward are required." });
+    }
+
+    // User submission creates place with PENDING status
+    const newPlace = await createPlace({
+      ...req.body,
+      createdById: req.user?.id,
+      isAdmin: false, // User submission, not admin
+    });
+
+    res.status(201).json({
+      message: "Place submitted successfully. It will be reviewed by our team.",
+      place: newPlace,
+    });
+  } catch (error: unknown) {
+    console.error("Failed to submit place:", error);
+    if (error instanceof Error && (error as any).code === 'P2002') {
+      return res.status(409).json({ message: 'A place with this name already exists.' });
+    }
     res.status(500).json({ message: "Server error" });
   }
 });

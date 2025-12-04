@@ -22,6 +22,13 @@ import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import wardRoutes from "./routes/wardRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import travelPlanRoutes from "./routes/travelPlanRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
+import partnerRoutes from "./routes/partnerRoutes.js";
+import partnerDashboardRoutes from "./routes/partnerDashboardRoutes.js";
+import contributorDashboardRoutes from "./routes/contributorDashboardRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import userDashboardRoutes from "./routes/userDashboardRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerSpec } from "./config/swagger.js";
 import { prisma } from "./lib/prisma.js";
@@ -119,6 +126,13 @@ app.use("/api/admin/places", adminPlaceRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/wards", wardRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/plans", travelPlanRoutes);
+app.use("/api", bookingRoutes);
+app.use("/api", partnerRoutes);
+app.use("/api", partnerDashboardRoutes);
+app.use("/api", contributorDashboardRoutes);
+app.use("/api", userRoutes);
+app.use("/api/users", userDashboardRoutes);
 
 // 404 handler
 app.use((req, res) => {

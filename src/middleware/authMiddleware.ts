@@ -52,3 +52,24 @@ export const requireAdmin = (
 
   next();
 };
+
+/**
+ * Middleware to check if user is PARTNER
+ * Must be used after authenticateToken
+ */
+export const requirePartner = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized: User not found" });
+  }
+
+  if (req.user.role !== "PARTNER") {
+    console.warn(`Access denied: User ${req.user.id} with role ${req.user.role} tried to access partner endpoint`);
+    return res.status(403).json({ error: "Forbidden: Partner access required" });
+  }
+
+  next();
+};

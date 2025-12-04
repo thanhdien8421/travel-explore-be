@@ -81,11 +81,11 @@ const options: swaggerJsdoc.Options = {
               description: "Place description",
               example: "Ngôi chợ lâu đời ở Sài Gòn",
             },
-            district: {
+            ward: {
               type: "string",
               nullable: true,
-              description: "District",
-              example: "Quận 1",
+              description: "Ward/Phường",
+              example: "Sài Gòn",
             },
             cover_image_url: {
               type: "string",

@@ -107,4 +107,60 @@ router.get("/me/visits",
   }
 });
 
+/**
+ * @swagger
+ * /api/me/visits/{placeId}:
+ *   delete:
+ *     summary: Remove a place from visit history
+ *     tags: [Visits]
+ *     parameters:
+ *       - in: path
+ *         name: placeId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Visit removed successfully
+ *       404:
+ *         description: Visit not found
+ *       500:
+ *         description: Server error
+ */
+router.delete("/me/visits/:placeId", 
+  authenticateToken, 
+  async (req: AuthRequest, res) => {
+  const { placeId } = req.params;
+
+  if (!placeId) {
+    return res.status(400).json({ message: "placeId is required" });
+  }
+
+  try {
+    const { prisma } = await import("../lib/prisma.js");
+    
+    const visit = await prisma.userVisit.findFirst({
+      where: {
+        userId: req.user!.id,
+        placeId,
+      },
+    });
+
+    if (!visit) {
+      return res.status(404).json({ message: "Không tìm thấy lịch sử" });
+    }
+
+    await prisma.userVisit.delete({
+      where: { id: visit.id },
+    });
+
+    res.json({ message: "Đã xóa khỏi lịch sử" });
+  } catch (error: unknown) {
+    console.error(error);
+    const errorMessage = error instanceof Error ? error.message : "Failed to remove visit";
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
 export default router;
