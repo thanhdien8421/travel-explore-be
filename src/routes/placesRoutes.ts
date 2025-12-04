@@ -175,7 +175,8 @@ router.get("/search-ai", async (req: Request, res: Response) => {
 
     // Try AI search first
     try {
-      const aiResponse = await axios.post('http://localhost:3001/search', { query });
+      const aiServerUrl = process.env.AI_SERVER_URL || 'http://localhost:3001';
+      const aiResponse = await axios.post(`${aiServerUrl}/search`, { query });
       const aiResults = aiResponse.data.results.slice(0, limit);
 
       // Fetch full place details for the AI results

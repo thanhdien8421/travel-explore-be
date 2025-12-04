@@ -29,6 +29,9 @@ RUN npm install --omit=dev
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
 
+# Copy embeddings.json for search functionality
+COPY --from=builder /app/embeddings.json ./embeddings.json
+
 # Expose port
 EXPOSE 3001
 
