@@ -241,21 +241,23 @@ router.get("/:slug", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Slug is required" });
     }
 
-    // Extract userId from auth header if present
+    // Extract userId and role from auth header if present
     const authHeader = req.headers.authorization;
     let userId: string | undefined;
+    let userRole: string | undefined;
 
     if (authHeader?.startsWith("Bearer ")) {
       try {
         const token = authHeader.substring(7);
         const decoded = jwt.verify(token, JWT_SECRET) as { id: string; role: string };
         userId = decoded.id;
+        userRole = decoded.role;
       } catch {
-        // If token verification fails, continue without userId
+        // If token verification fails, continue without userId/role
       }
     }
 
-    const place = await getPlaceBySlug(slug, userId);
+    const place = await getPlaceBySlug(slug, userId, userRole);
 
     if (!place) return res.status(404).json({ message: "Place not found" });
 
