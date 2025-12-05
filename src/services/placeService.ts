@@ -296,18 +296,23 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
 
 /**
  * Lấy chi tiết một địa điểm theo slug
- * Chỉ trả về places với status APPROVED cho public access
+ * Admin/Partner/Contributor có thể xem mọi trạng thái
+ * Public users chỉ xem được APPROVED
  */
-export const getPlaceBySlug = async (slug: string, userId?: string): Promise<PlaceDetail | null> => {
+export const getPlaceBySlug = async (slug: string, userId?: string, userRole?: string): Promise<PlaceDetail | null> => {
   console.time(`getPlaceBySlug-${slug}`);
   
-  // Query 1: Get main place data - only APPROVED and active places
+  // Check if user has elevated privileges (can view all statuses)
+  const canViewAllStatuses = userRole === 'ADMIN' || userRole === 'PARTNER' || userRole === 'CONTRIBUTOR';
+  
+  // Query 1: Get main place data
+  // Admin/Partner/Contributor can view any status, public users only see APPROVED
   console.time(`prisma-place-${slug}`);
   const place = await prisma.place.findFirst({
     where: { 
       slug,
       isActive: true,
-      status: PlaceStatus.APPROVED 
+      ...(canViewAllStatuses ? {} : { status: PlaceStatus.APPROVED })
     },
     select: {
       id: true,
@@ -330,6 +335,7 @@ export const getPlaceBySlug = async (slug: string, userId?: string): Promise<Pla
       isFeatured: true,
       averageRating: true,
       isActive: true,
+      status: true,
       createdAt: true,
       updatedAt: true,
     },
