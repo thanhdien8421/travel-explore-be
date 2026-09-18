@@ -6,20 +6,6 @@ export const createReview = async (
   rating: number,
   comment: string
 ) => {
-  // Check if place exists, is active, and is approved
-  const place = await prisma.place.findFirst({
-    where: { 
-      id: placeId,
-      isActive: true,
-      status: 'APPROVED'
-    },
-    select: { id: true },
-  });
-
-  if (!place) {
-    throw new Error("Place not found or not available for review");
-  }
-
   // Tạo review
   const review = await prisma.review.create({
     data: {

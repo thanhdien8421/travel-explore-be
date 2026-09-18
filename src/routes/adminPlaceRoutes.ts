@@ -1,8 +1,7 @@
 import express from "express";
 import type { Request, Response } from "express";
-import { Prisma, PlaceStatus } from "@prisma/client";
-import { getAdminPlaces, createPlace, updatePlace, deletePlace, restorePlace, approvePlace, rejectPlace, getPendingPlacesCount } from "../services/adminPlaceService.js";
-import { authenticateToken, requireAdmin, type AuthRequest } from "../middleware/authMiddleware.js";
+import { getAdminPlaces, createPlace, updatePlace, deletePlace } from "../services/adminPlaceService.js";
+import { authenticateToken, requireAdmin } from "../middleware/authMiddleware.js";
 import { prisma } from "../lib/prisma.js";
 
 const router = express.Router();
@@ -45,14 +44,14 @@ const router = express.Router();
  *       500:
  *         description: Server error
  */
-router.get("/stats", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get("/stats", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
         const search = (req.query.search as string) || "";
 
         console.time('getAdminStats-total');
 
         // Build where clause
-        const where: Prisma.PlaceWhereInput = {};
+        const where: any = {};
         if (search) {
             where.OR = [
                 { name: { contains: search, mode: "insensitive" } },
@@ -80,15 +79,11 @@ router.get("/stats", authenticateToken, requireAdmin, async (req: AuthRequest, r
 
         console.timeEnd('getAdminStats-total');
 
-        // Get pending places count
-        const pendingCount = await getPendingPlacesCount();
-
         res.status(200).json({
             totalLocations,
             averageRating: Math.min(5, averageRating),
             highQualityLocations,
             ratedCount: placesWithRatings.length,
-            pendingCount,
         });
     } catch (error: unknown) {
         console.error("Failed to get stats:", error);
@@ -155,13 +150,12 @@ router.get("/stats", authenticateToken, requireAdmin, async (req: AuthRequest, r
  *       500:
  *         description: Server error
  */
-router.get("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get("/", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     try {
         const {
             search,
             category,
             ward,
-            status,
             sortBy,
             sortOrder,
             limit,
@@ -173,7 +167,6 @@ router.get("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: R
             search?: string;
             category?: string;
             ward?: string;
-            status?: PlaceStatus;
             sortBy?: "name" | "createdAt" | "featured";
             sortOrder?: "asc" | "desc";
             limit?: number;
@@ -183,12 +176,6 @@ router.get("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: R
         if (search) filters.search = String(search);
         if (category) filters.category = String(category);
         if (ward) filters.ward = String(ward);
-        if (status) {
-            const statusStr = String(status).toUpperCase();
-            if (Object.values(PlaceStatus).includes(statusStr as PlaceStatus)) {
-                filters.status = statusStr as PlaceStatus;
-            }
-        }
         if (sortBy && ["name", "createdAt", "featured"].includes(String(sortBy))) {
             filters.sortBy = String(sortBy) as "name" | "createdAt" | "featured";
         }
@@ -266,7 +253,7 @@ router.get("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: R
  *       500:
  *         description: Server error
  */
-router.post("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post("/", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { name, ward } = req.body;
 
     if (!name || !ward) {
@@ -274,12 +261,7 @@ router.post("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: 
     }
 
     try {
-        // Admin creates place -> APPROVED status
-        const newPlace = await createPlace({
-            ...req.body,
-            createdById: req.user?.id,
-            isAdmin: true,
-        });
+        const newPlace = await createPlace(req.body);
         res.status(201).json(newPlace);
     } catch (error: unknown) {
         console.error("Failed to create place:", error);
@@ -318,7 +300,7 @@ router.post("/", authenticateToken, requireAdmin, async (req: AuthRequest, res: 
  *       500:
  *         description: Server error
  */
-router.get("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get("/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { id } = req.params;
 
     if (!id) {
@@ -428,7 +410,7 @@ router.get("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res
  *       500:
  *         description: Server error
  */
-router.put("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.put("/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { id } = req.params;
 
     if (!id) {
@@ -451,8 +433,8 @@ router.put("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res
  * @swagger
  * /api/admin/places/{id}:
  *   delete:
- *     summary: Delete a place (Admin)
- *     description: Soft delete (default) or hard delete a place
+ *     summary: Delete a place (Soft delete - Admin)
+ *     description: Soft delete a place (marks as inactive, doesn't remove from database)
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -463,12 +445,6 @@ router.put("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res
  *         schema:
  *           type: string
  *         description: Place ID (UUID)
- *       - in: query
- *         name: permanent
- *         schema:
- *           type: boolean
- *           default: false
- *         description: If true, permanently delete place (hard delete)
  *     responses:
  *       204:
  *         description: Place deleted successfully
@@ -481,226 +457,20 @@ router.put("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res
  *       500:
  *         description: Server error
  */
-router.delete("/:id", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete("/:id", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
     const { id } = req.params;
-    const permanent = req.query.permanent === "true";
 
     if (!id) {
         return res.status(400).json({ message: "Place ID is required." });
     }
 
     try {
-        await deletePlace(id, permanent);
+        await deletePlace(id);
         res.status(204).send();
     } catch (error: unknown) {
         console.error("Failed to delete place:", error);
         if (error instanceof Error && (error as any).code === 'P2025') {
             return res.status(404).json({ message: 'Place not found.' });
-        }
-        res.status(500).json({ message: "Server error" });
-    }
-});
-
-/**
- * @swagger
- * /api/admin/places/{id}/restore:
- *   patch:
- *     summary: Restore a soft-deleted place (Admin)
- *     description: Reactivate a place that was soft-deleted
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Place ID (UUID)
- *     responses:
- *       200:
- *         description: Place restored successfully
- *       401:
- *         description: Unauthorized - Missing or invalid token
- *       403:
- *         description: Forbidden - User is not an admin
- *       404:
- *         description: Place not found
- *       500:
- *         description: Server error
- */
-router.patch("/:id/restore", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
-    const { id } = req.params;
-
-    if (!id) {
-        return res.status(400).json({ message: "Place ID is required." });
-    }
-
-    try {
-        const place = await restorePlace(id);
-        res.status(200).json({
-            message: "Place restored successfully",
-            place,
-        });
-    } catch (error: unknown) {
-        console.error("Failed to restore place:", error);
-        if (error instanceof Error && (error as any).code === 'P2025') {
-            return res.status(404).json({ message: 'Place not found.' });
-        }
-        res.status(500).json({ message: "Server error" });
-    }
-});
-
-/**
- * @swagger
- * /api/admin/places/{id}/approve:
- *   patch:
- *     summary: Approve a pending place (Admin)
- *     description: Approve a place that is pending review
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Place ID (UUID)
- *     responses:
- *       200:
- *         description: Place approved successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Place not found
- *       500:
- *         description: Server error
- */
-router.patch("/:id/approve", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
-    const { id } = req.params;
-
-    if (!id) {
-        return res.status(400).json({ message: "Place ID is required." });
-    }
-
-    try {
-        const approvedPlace = await approvePlace(id);
-        res.status(200).json({ message: "Place approved successfully", place: approvedPlace });
-    } catch (error: unknown) {
-        console.error("Failed to approve place:", error);
-        if (error instanceof Error && (error as any).code === 'P2025') {
-            return res.status(404).json({ message: 'Place not found.' });
-        }
-        res.status(500).json({ message: "Server error" });
-    }
-});
-
-/**
- * @swagger
- * /api/admin/places/{id}/reject:
- *   patch:
- *     summary: Reject a pending place (Admin)
- *     description: Reject a place that is pending review
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Place ID (UUID)
- *     responses:
- *       200:
- *         description: Place rejected successfully
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
- *       404:
- *         description: Place not found
- *       500:
- *         description: Server error
- */
-router.patch("/:id/reject", authenticateToken, requireAdmin, async (req: AuthRequest, res: Response) => {
-    const { id } = req.params;
-
-    if (!id) {
-        return res.status(400).json({ message: "Place ID is required." });
-    }
-
-    try {
-        const rejectedPlace = await rejectPlace(id);
-        res.status(200).json({ message: "Place rejected", place: rejectedPlace });
-    } catch (error: unknown) {
-        console.error("Failed to reject place:", error);
-        if (error instanceof Error && (error as any).code === 'P2025') {
-            return res.status(404).json({ message: 'Place not found.' });
-        }
-        res.status(500).json({ message: "Server error" });
-    }
-});
-
-/**
- * @swagger
- * /api/admin/places/{id}/summary:
- *   post:
- *     summary: Generate AI summary for a place (Admin)
- *     description: Generate a summary of user reviews using AI and save it to the place
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Place ID (UUID)
- *     responses:
- *       200:
- *         description: Summary generated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: string
- *                 summary:
- *                   type: string
- *       401:
- *         description: Unauthorized - Missing or invalid token
- *       403:
- *         description: Forbidden - User is not an admin
- *       404:
- *         description: Place not found
- *       500:
- *         description: Server error
- */
-router.post("/:id/summary", authenticateToken, requireAdmin, async (req: Request, res: Response) => {
-    const { id } = req.params;
-
-    if (!id) {
-        return res.status(400).json({ message: "Place ID is required." });
-    }
-
-    try {
-        // Import here to avoid circular dependency if any, though not strictly needed if structure is clean
-        const { generateAndSaveSummary } = await import("../services/adminPlaceService.js");
-        const updatedPlace = await generateAndSaveSummary(id);
-        res.status(200).json({
-            id: updatedPlace.id,
-            summary: updatedPlace.summary
-        });
-    } catch (error: unknown) {
-        console.error("Failed to generate summary:", error);
-        if (error instanceof Error && error.message === "Place not found") {
-            return res.status(404).json({ message: "Place not found" });
         }
         res.status(500).json({ message: "Server error" });
     }

@@ -10,7 +10,7 @@ yarn.lock
 
 # Build outputs
 dist/
-/generated/prisma
+src/generated/prisma
 
 # Logs
 logs
@@ -45,10 +45,4 @@ Thumbs.db
 backups/
 *.backup
 scripts/
-prisma/migrate-data.ts
-prisma/parse-addresses.ts
-prisma/restore-data.ts
-prisma/transform-data.ts
-prisma/pull-all-data.ts
-prisma/seed-categories.ts
 verify-db.ts

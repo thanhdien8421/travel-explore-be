@@ -3,7 +3,7 @@ export interface PlaceSummary {
   name: string;
   description: string | null;
   slug: string;
-  ward: string | null;
+  district: string | null;
   latitude: number | null;
   longitude: number | null;
   cover_image_url: string | null;
@@ -32,7 +32,6 @@ export interface PlaceDetail {
   price_info?: string | null;
   contact_info?: string | null;
   tips_notes?: string | null;
-  summary?: string | null;
   is_featured: boolean;
   average_rating: number;
   visited?: boolean;

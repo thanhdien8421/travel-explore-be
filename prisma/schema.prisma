@@ -1,11 +1,27 @@
+// Prisma schema for travel-explore-be
+//
+// The PostgreSQL tables use snake_case names (places, place_images, users, ...)
+// while the application code uses PascalCase models with camelCase fields.
+// The `@@map` / `@map` attributes below translate between the two so that the
+// generated client exposes `prisma.place`, `prisma.placeImage`, `place.imageUrl`,
+// `place.isFeatured`, `place.userVisits`, etc.
+//
+// NOTE about `place_images`:
+//   The database has a PARTIAL unique index
+//   (`idx_place_images_one_cover_per_place`, WHERE is_cover = true) which means
+//   "at most ONE cover image per place". Prisma treats a unique foreign key as a
+//   1:1 relation, which would be wrong here (a place can have many images), so the
+//   relation is declared as 1:n and that partial index is left DB-managed only.
+//   Do NOT re-add `@unique(where: raw("(is_cover = true)"))` on `placeId`.
+
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 model Place {
@@ -32,8 +48,8 @@ model Place {
   provinceCity         String           @default("TP. Hồ Chí Minh") @map("province_city") @db.VarChar(100)
   isActive             Boolean          @default(true) @map("is_active")
   createdById          String?          @map("created_by")
-  summary              String?          @db.Text
   status               PlaceStatus      @default(APPROVED) @map("status")
+  summary              String?
   bookings             Booking[]
   categories           PlaceCategory[]
   images               PlaceImage[]

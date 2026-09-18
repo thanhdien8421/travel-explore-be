@@ -22,13 +22,6 @@ import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import wardRoutes from "./routes/wardRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
-import travelPlanRoutes from "./routes/travelPlanRoutes.js";
-import bookingRoutes from "./routes/bookingRoutes.js";
-import partnerRoutes from "./routes/partnerRoutes.js";
-import partnerDashboardRoutes from "./routes/partnerDashboardRoutes.js";
-import contributorDashboardRoutes from "./routes/contributorDashboardRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
-import userDashboardRoutes from "./routes/userDashboardRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerSpec } from "./config/swagger.js";
 import { prisma } from "./lib/prisma.js";
@@ -126,13 +119,6 @@ app.use("/api/admin/places", adminPlaceRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/wards", wardRoutes);
 app.use("/api/upload", uploadRoutes);
-app.use("/api/plans", travelPlanRoutes);
-app.use("/api", bookingRoutes);
-app.use("/api", partnerRoutes);
-app.use("/api", partnerDashboardRoutes);
-app.use("/api", contributorDashboardRoutes);
-app.use("/api", userRoutes);
-app.use("/api/users", userDashboardRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -142,30 +128,30 @@ app.use((req, res) => {
   });
 });
 
-// Error handling middleware (must be last)
+// Error handling middleware
 app.use(errorHandler);
 
 const port = process.env.PORT || 8000;
 
-// NEW: Async startup function
+// Async startup function
 async function startServer() {
   try {
-    // 1. Connect to database FIRST
+    //Connect to database FIRST
     await prisma.$connect();
-    console.log('✅ Database connected successfully');
+    console.log('Database connected successfully');
     
-    // 2. THEN start the server
+    //THEN start the server
     app.listen(port, () => {
       console.log(`
-🚀 Travel Explore API Server Started!
-📍 Server running on: http://localhost:${port}
-🏥 Health check: http://localhost:${port}/health
-📚 API endpoints: http://localhost:${port}/api/places
-📖 API Documentation: http://localhost:${port}/api-docs
+Travel Explore API Server Started!
+Server running on: http://localhost:${port}
+Health check: http://localhost:${port}/health
+API endpoints: http://localhost:${port}/api/places
+API Documentation: http://localhost:${port}/api-docs
       `);
     });
   } catch (error) {
-    console.error('❌ Failed to connect to database:', error);
+    console.error('Failed to connect to database:', error);
     console.error('Check your DATABASE_URL and Supabase connection');
     process.exit(1); // Exit if DB connection fails
   }
@@ -173,13 +159,13 @@ async function startServer() {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
+  console.log('Shutting down gracefully...');
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
+  console.log('Shutting down gracefully...');
   await prisma.$disconnect();
   process.exit(0);
 });

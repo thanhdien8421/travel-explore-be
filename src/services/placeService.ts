@@ -1,7 +1,6 @@
 import type { PlaceSummary, PlaceDetail } from "../types/place.types.js";
 import { getImageUrl } from "../lib/supabase.js";
 import { prisma } from "../lib/prisma.js";
-import { Prisma, PlaceStatus } from "@prisma/client";
 
 // Helper function to remove Vietnamese diacritics
 const removeDiacritics = (str: string): string => {
@@ -34,14 +33,14 @@ interface SearchResponse {
 
 export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
   const places = await prisma.place.findMany({
-    where: { isFeatured: true, isActive: true, status: PlaceStatus.APPROVED },
+    where: { isFeatured: true, isActive: true },
     take: limit,
     select: {
       id: true,
       name: true,
       description: true,
       slug: true,
-      ward: true,
+      district: true,
       latitude: true,
       longitude: true,
       coverImageUrl: true,
@@ -78,7 +77,7 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
       name: p.name,
       description: p.description,
       slug: p.slug,
-      ward: p.ward,
+      district: p.district,
       latitude: p.latitude?.toNumber() ?? null,
       longitude: p.longitude?.toNumber() ?? null,
       cover_image_url,
@@ -90,14 +89,14 @@ export const getFeaturedPlaces = async (limit: number = 10): Promise<PlaceSummar
 
 export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> => {
   const places = await prisma.place.findMany({
-    where: { isActive: true, status: PlaceStatus.APPROVED },
+    where: { isActive: true },
     take: limit,
     select: {
       id: true,
       name: true,
       description: true,
       slug: true,
-      ward: true,
+      district: true,
       latitude: true,
       longitude: true,
       coverImageUrl: true,
@@ -134,7 +133,7 @@ export const getAllPlaces = async (limit: number = 10): Promise<PlaceSummary[]> 
       name: p.name,
       description: p.description,
       slug: p.slug,
-      ward: p.ward,
+      district: p.district,
       latitude: p.latitude?.toNumber() ?? null,
       longitude: p.longitude?.toNumber() ?? null,
       cover_image_url,
@@ -158,7 +157,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
   const skip = (page - 1) * limit;
 
   // Build where clause
-  const where: Prisma.PlaceWhereInput = { isActive: true, status: PlaceStatus.APPROVED };
+  const where: any = { isActive: true };
 
   // Search by name, description, or full_address_generated (case-insensitive)
   if (q) {
@@ -214,7 +213,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
   }
 
   // Sort options
-  let orderBy: Prisma.PlaceOrderByWithRelationInput = { name: "asc" };
+  let orderBy: any = { name: "asc" };
   if (sortBy === "rating_desc") {
     orderBy = { averageRating: "desc" };
   } else if (sortBy === "rating_asc") {
@@ -235,7 +234,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
       name: true,
       description: true,
       slug: true,
-      ward: true,
+      district: true,
       latitude: true,
       longitude: true,
       coverImageUrl: true,
@@ -275,7 +274,7 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
       name: p.name,
       description: p.description,
       slug: p.slug,
-      ward: p.ward,
+      district: p.district,
       latitude: p.latitude?.toNumber() ?? null,
       longitude: p.longitude?.toNumber() ?? null,
       cover_image_url,
@@ -296,24 +295,14 @@ export const searchPlaces = async (options: SearchOptions): Promise<SearchRespon
 
 /**
  * Lấy chi tiết một địa điểm theo slug
- * Admin/Partner/Contributor có thể xem mọi trạng thái
- * Public users chỉ xem được APPROVED
  */
-export const getPlaceBySlug = async (slug: string, userId?: string, userRole?: string): Promise<PlaceDetail | null> => {
+export const getPlaceBySlug = async (slug: string, userId?: string): Promise<PlaceDetail | null> => {
   console.time(`getPlaceBySlug-${slug}`);
   
-  // Check if user has elevated privileges (can view all statuses)
-  const canViewAllStatuses = userRole === 'ADMIN' || userRole === 'PARTNER' || userRole === 'CONTRIBUTOR';
-  
   // Query 1: Get main place data
-  // Admin/Partner/Contributor can view any status, public users only see APPROVED
   console.time(`prisma-place-${slug}`);
-  const place = await prisma.place.findFirst({
-    where: { 
-      slug,
-      isActive: true,
-      ...(canViewAllStatuses ? {} : { status: PlaceStatus.APPROVED })
-    },
+  const place = await prisma.place.findUnique({
+    where: { slug },
     select: {
       id: true,
       name: true,
@@ -331,18 +320,16 @@ export const getPlaceBySlug = async (slug: string, userId?: string, userRole?: s
       priceInfo: true,
       contactInfo: true,
       tipsNotes: true,
-      summary: true,
       isFeatured: true,
       averageRating: true,
       isActive: true,
-      status: true,
       createdAt: true,
       updatedAt: true,
     },
   });
   console.timeEnd(`prisma-place-${slug}`);
 
-  if (!place) return null;
+  if (!place || !place.isActive) return null;
 
   // Run queries 2, 3 in parallel (removed reviews query)
   console.time(`parallel-queries-${slug}`);
@@ -391,7 +378,6 @@ export const getPlaceBySlug = async (slug: string, userId?: string, userRole?: s
     price_info: place.priceInfo,
     contact_info: place.contactInfo,
     tips_notes: place.tipsNotes,
-    summary: place.summary,
     is_featured: place.isFeatured,
     average_rating: place.averageRating?.toNumber() ?? 0,
     created_at: place.createdAt,
