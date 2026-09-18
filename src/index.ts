@@ -12,7 +12,6 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import dotenv from "dotenv";
 import swaggerUi from "swagger-ui-express";
 import placeRoutes from "./routes/placesRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
@@ -27,7 +26,9 @@ import { swaggerSpec } from "./config/swagger.js";
 import { prisma } from "./lib/prisma.js";
 
 // Load environment variables
-dotenv.config();
+if (process.env.NODE_ENV !== 'production') {
+  await import('dotenv').then((dotenv) => dotenv.config());
+}
 
 const app = express();
 
@@ -35,37 +36,6 @@ const app = express();
 app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for Swagger UI
 })); // Security headers
-// app.use(cors({
-//   origin: true
-  
-//   (origin, callback) => {
-//     // Allowed origins
-//     const allowedOrigins = [
-//       /^http:\/\/localhost:3\d{3}$/,  // Any localhost:3xxx
-//       "https://travel-explore.azurewebsites.net"
-//     ];
-    
-//     // Check if origin is in environment variable
-//     const envOrigin = process.env.FRONTEND_URL;
-    
-//     if (!origin) {
-//       // Allow requests with no origin (like mobile apps, Postman)
-//       callback(null, true);
-//     } else if (envOrigin && origin === envOrigin) {
-//       // Allow environment-specified origin
-//       callback(null, true);
-//     } else if (allowedOrigins.some(allowed => 
-//       typeof allowed === 'string' ? allowed === origin : allowed.test(origin)
-//     )) {
-//       // Allow predefined origins
-//       callback(null, true);
-//     } else {
-//       callback(new Error("Not allowed by CORS"));
-//     }
-//   }
-//   ,
-//   credentials: true,
-// })); // Enable CORS for frontend
 
 // Body parsing middleware
 app.use(cors({
