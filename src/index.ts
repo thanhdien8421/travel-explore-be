@@ -35,13 +35,42 @@ const app = express();
 // Security & CORS middleware
 app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for Swagger UI
-})); // Security headers
+}));  // Security headers
 
-// Body parsing middleware
+// Type for the CORS origin callback (avoids implicit `any`)
+type CorsOriginCallback = (err: Error | null, allow?: boolean) => void;
+
+// Comma-separated list of extra allowed origins, e.g.
+// FRONTEND_URL="http://localhost:5173,https://app.example.com"
+const envOrigin = process.env.FRONTEND_URL?.trim();
+
+const allowedOrigins: (string | RegExp)[] = envOrigin
+  ? envOrigin
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0)
+  : [];
+
 app.use(cors({
-  origin: true,
+  origin: (origin: string | undefined, callback: CorsOriginCallback) => {
+    // Allow requests with no origin (same-origin, mobile apps, Postman, curl)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    const isAllowed = allowedOrigins.some((allowed) =>
+      typeof allowed === "string" ? allowed === origin : allowed.test(origin)
+    );
+
+    if (isAllowed) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
   credentials: true,
-}));
+})); // Enable CORS for frontend
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
