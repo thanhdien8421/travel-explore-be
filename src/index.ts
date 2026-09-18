@@ -21,7 +21,8 @@ import adminPlaceRoutes from "./routes/adminPlaceRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import wardRoutes from "./routes/wardRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
-import { errorHandler } from "./middleware/errorHandler.js";
+import { errorHandler, AppError } from "./middleware/errorHandler.js";
+import type { CorsOptions } from "cors";
 import { swaggerSpec } from "./config/swagger.js";
 import { prisma } from "./lib/prisma.js";
 
@@ -37,39 +38,70 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP for Swagger UI
 }));  // Security headers
 
-// Type for the CORS origin callback (avoids implicit `any`)
-type CorsOriginCallback = (err: Error | null, allow?: boolean) => void;
+/**
+ * Normalize an origin so trivial differences (trailing slash, casing, stray
+ * spaces) cannot cause a false CORS rejection.
+ */
+const normalizeOrigin = (value: string): string =>
+  value.trim().replace(/\/+$/, "").toLowerCase();
 
-// Comma-separated list of extra allowed origins, e.g.
-// FRONTEND_URL="http://localhost:5173,https://app.example.com"
-const envOrigin = process.env.FRONTEND_URL?.trim();
+/**
+ * Allowed browser origins (the `Origin` request header).
+ * Supports a comma-separated list, e.g.
+ * FRONTEND_URL="https://app.example.com,http://localhost:5173"
+ */
+const allowedOrigins: string[] = (process.env.FRONTEND_URL ?? "")
+  .split(",")
+  .map(normalizeOrigin)
+  .filter((value) => value.length > 0);
 
-const allowedOrigins: (string | RegExp)[] = envOrigin
-  ? envOrigin
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0)
-  : [];
+// Outside production, also allow the usual local frontend dev servers so that
+// FE running on localhost is not blocked by the production FRONTEND_URL.
+if (process.env.NODE_ENV !== "production") {
+  const devOrigins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+  ];
 
-app.use(cors({
-  origin: (origin: string | undefined, callback: CorsOriginCallback) => {
-    // Allow requests with no origin (same-origin, mobile apps, Postman, curl)
+  for (const devOrigin of devOrigins) {
+    if (!allowedOrigins.includes(devOrigin)) {
+      allowedOrigins.push(devOrigin);
+    }
+  }
+}
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    // No Origin header: curl, Postman, mobile apps, same-origin, server-to-server
     if (!origin) {
       return callback(null, true);
     }
 
-    const isAllowed = allowedOrigins.some((allowed) =>
-      typeof allowed === "string" ? allowed === origin : allowed.test(origin)
-    );
-
-    if (isAllowed) {
+    if (allowedOrigins.includes(normalizeOrigin(origin))) {
       return callback(null, true);
     }
 
-    return callback(new Error("Not allowed by CORS"));
+    console.warn(
+      `CORS: blocked request from origin "${origin}". Allowed origins: ${
+        allowedOrigins.length > 0
+          ? allowedOrigins.join(", ")
+          : "(none configured - set FRONTEND_URL)"
+      }`
+    );
+
+    // Reject with an explicit 403 instead of a bare Error (which was surfacing
+    // as a 500 and hid the real cause in logs).
+    return callback(new AppError(`Origin ${origin} is not allowed by CORS`, 403));
   },
   credentials: true,
-})); // Enable CORS for frontend
+  // Defaults are kept for methods/allowedHeaders so the browser's
+  // Access-Control-Request-Headers is reflected automatically.
+  maxAge: 86400, // cache preflight response for 24h
+};
+
+app.use(cors(corsOptions)); // Enable CORS for frontend
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
