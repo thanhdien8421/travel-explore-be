@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
 
-dotenv.config();
+if (process.env.NODE_ENV !== 'production') {
+  await import('dotenv').then((dotenv) => dotenv.config());
+}
 
 // Helper to check if Supabase is properly configured
 export const isSupabaseConfigured = (): boolean => {
