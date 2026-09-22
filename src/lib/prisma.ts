@@ -1,30 +1,21 @@
 import { PrismaClient } from "../generated/prisma/client.js"
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
-});
+if (process.env.NODE_ENV !== "production") {
+  try {
+    const dotenv = await import("dotenv");
+    dotenv.config();
+  } catch {}
+}
+
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL is not set. Add it to your .env file locally, or provide it as an environment variable in the deployment."
+  );
+}
+
+const adapter = new PrismaPg({ connectionString });
 
 export const prisma = new PrismaClient({ adapter });
-
-// import { PrismaClient } from '@prisma/client';
-
-// // Prevent multiple instances in development (hot reload)
-// declare global {
-//   // eslint-disable-next-line no-var
-//   var prisma: PrismaClient | undefined;
-// }
-
-// // Use existing instance if available, otherwise create new one
-// export const prisma = global.prisma || new PrismaClient({
-//   datasources: {
-//     db: {
-//       url: process.env.DATABASE_URL || '',
-//     },
-//   },
-// });
-
-// // In development, store instance globally to survive hot reloads
-// if (process.env.NODE_ENV !== 'production') {
-//   global.prisma = prisma;
-// }
