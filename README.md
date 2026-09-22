@@ -279,6 +279,41 @@ For production, ensure:
 4. Set up SSL/TLS certificates
 5. Use process managers (PM2, systemd)
 
+### Deploying to Vercel
+
+This repo is Vercel-ready:
+
+- [`src/app.ts`](src/app.ts) builds and **exports** the Express app (no `app.listen`).
+- [`src/index.ts`](src/index.ts) is only the long-running bootstrap used locally and by Docker — it is **not** imported on Vercel.
+- [`api/index.ts`](api/index.ts) is the serverless entry point that exports the app as the handler.
+- [`vercel.json`](vercel.json) rewrites every request to that function (and runs `prisma generate` before building).
+
+> Browsers block a cross-origin call when the **preflight `OPTIONS`** request returns no
+> `Access-Control-Allow-Origin` header. If the request never reaches Express (e.g. Vercel
+> answers its own `404 NOT_FOUND`), no amount of CORS configuration in the code will help —
+> the platform routing must be fixed first, which is what the files above do.
+
+Set the following **Environment Variables** in *Vercel → Project → Settings → Environment Variables*:
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | ✅ | Supabase connection string (when using the pooler add `?pgbouncer=true&connection_limit=1`) |
+| `FRONTEND_URL` | ✅ | Exact FE origin, e.g. `https://travel-explore-fe.vercel.app`. A comma-separated list and `*` wildcards are supported. If unset, the API reflects any origin. |
+| `JWT_SECRET` | ✅ | Must match the secret used to sign tokens |
+| Supabase keys (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, …) | ⚠️ | Required by the upload feature |
+
+Do **not** set `PORT` on Vercel — the platform manages it. `NODE_ENV=production` is set automatically, so `.env` is intentionally not loaded there.
+
+After deploying, verify the preflight directly with curl (a browser fetch is itself subject to CORS, curl is not):
+
+```bash
+curl -i -X OPTIONS "https://travel-explore-be.vercel.app/api/places?limit=12&featured=true" \
+  -H "Origin: https://travel-explore-fe.vercel.app" \
+  -H "Access-Control-Request-Method: GET"
+```
+
+A correct response is `204 No Content` **with** `Access-Control-Allow-Origin: https://travel-explore-fe.vercel.app`.
+
 ### Docker (Optional)
 
 ```dockerfile
